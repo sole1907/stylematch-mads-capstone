@@ -1,0 +1,50 @@
+# Data — raw/processed/interim/external datasets stay local, never committed
+data/raw/*
+data/interim/*
+data/processed/*
+data/external/*
+!data/raw/.gitkeep
+!data/interim/.gitkeep
+!data/processed/.gitkeep
+!data/external/.gitkeep
+
+# Models — trained weights/checkpoints are large binaries, don't belong in git
+models/*
+!models/.gitkeep
+
+# Generated report figures/outputs — regenerate from code, don't commit by default
+reports/figures/*
+!reports/figures/.gitkeep
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# Virtual environment
+venv/
+.venv/
+env/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Tooling caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Environment variables / secrets
+.env
+.env.*
+
+# Editor/IDE
+.vscode/
+.idea/
+
+# macOS
+.DS_Store

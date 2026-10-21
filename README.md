@@ -6,6 +6,21 @@
 
 Two-stage visual fashion recommendation system (similarity + compatibility engines) — SIADS 699 capstone, Team StyleMatch
 
+## Setup
+
+Clone the repo and set up a virtual environment:
+
+```bash
+git clone https://github.com/<org-or-user>/stylematch-mads-capstone.git
+cd stylematch-mads-capstone
+python -m venv venv
+source venv/bin/activate   # Windows: venv\Scripts\activate
+pip install -r requirements.txt
+```
+
+*Dataset download/access instructions will be added here once the data pipelines
+are in place.*
+
 ## Project Organization
 
 ```
@@ -43,18 +58,27 @@ Two-stage visual fashion recommendation system (similarity + compatibility engin
     │
     ├── __init__.py             <- Makes stylematch a Python module
     │
-    ├── config.py               <- Store useful variables and configuration
+    ├── config.py               <- Shared: paths, env vars, configuration
     │
-    ├── dataset.py              <- Scripts to download or generate data
+    ├── plots.py                <- Shared: generic plotting helpers
     │
-    ├── features.py             <- Code to create features for modeling
+    ├── features.py             <- Not yet in use (generic scaffold stub,
+    │                              undecided whether needed for image-based
+    │                              models — revisit later)
     │
-    ├── modeling                
-    │   ├── __init__.py 
-    │   ├── predict.py          <- Code to run model inference with trained models          
-    │   └── train.py            <- Code to train models
+    ├── similarity              <- Similarity engine (DeepFashion)
+    │   ├── __init__.py
+    │   ├── dataset.py          <- DeepFashion data loading
+    │   ├── model.py            <- Backbone + embedding head
+    │   ├── train.py            <- Training loop (triplet/contrastive loss)
+    │   └── predict.py          <- Retrieval inference
     │
-    └── plots.py                <- Code to create visualizations
+    └── compatibility           <- Compatibility engine (Polyvore Outfits)
+        ├── __init__.py
+        ├── dataset.py          <- Polyvore data loading (outfits, FITB)
+        ├── model.py            <- Compatibility scoring architecture
+        ├── train.py            <- Training loop
+        └── predict.py          <- Compatibility inference
 ```
 
 --------

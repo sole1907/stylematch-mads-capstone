@@ -61,10 +61,15 @@ create_environment:
 #################################################################################
 
 
-## Make dataset
-.PHONY: data
-data: requirements
-	$(PYTHON_INTERPRETER) stylematch/dataset.py
+## Make similarity-engine dataset
+.PHONY: data-similarity
+data-similarity: requirements
+	$(PYTHON_INTERPRETER) stylematch/similarity/dataset.py
+
+## Make compatibility-engine dataset
+.PHONY: data-compatibility
+data-compatibility: requirements
+	$(PYTHON_INTERPRETER) stylematch/compatibility/dataset.py
 
 
 #################################################################################
