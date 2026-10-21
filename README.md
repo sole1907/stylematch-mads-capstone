@@ -11,7 +11,7 @@ Two-stage visual fashion recommendation system (similarity + compatibility engin
 Clone the repo and set up a virtual environment:
 
 ```bash
-git clone https://github.com/<org-or-user>/stylematch-mads-capstone.git
+git clone https://github.com/sole1907/stylematch-mads-capstone.git
 cd stylematch-mads-capstone
 python -m venv venv
 source venv/bin/activate   # Windows: venv\Scripts\activate
