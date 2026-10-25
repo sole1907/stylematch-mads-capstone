@@ -115,8 +115,6 @@ def main(
         summary = f"{done_count}/{total_count} files done so far, rate limit likely blocking the rest"
         logger.warning(summary)
 
-    # Deliberately short and on its own line: this is what a cron job
-    # should deliver as the notification text, not the full log above.
     print(f"SUMMARY: {summary}")
 
 
