@@ -64,7 +64,7 @@ create_environment:
 ## Make similarity-engine dataset
 .PHONY: data-similarity
 data-similarity: requirements
-	$(PYTHON_INTERPRETER) stylematch/similarity/dataset.py
+	$(PYTHON_INTERPRETER) scripts/download_deepfashion.py
 
 ## Make compatibility-engine dataset
 .PHONY: data-compatibility
