@@ -1,9 +1,7 @@
 # Data Access Statement
 
 How to access each dataset used in this project, who owns it, and what
-restrictions apply. See the project proposal's "Does your dataset have any
-usage restrictions?" section for the original license research this is
-adapted from.
+restrictions apply.
 
 ---
 
@@ -16,11 +14,8 @@ adapted from.
 - **Owner:** Multimedia Lab, The Chinese University of Hong Kong (Liu et al., 2016)
 - **License:** non-commercial research use only. Per the project page's own
   News section, the CAP subset's data and labels are "released without
-  encryption (password)," so no signed release agreement is required for
-  this specific subset (other DeepFashion benchmarks, e.g. In-Shop
-  Retrieval or DeepFashion2, may require one if used later). No
-  redistribution beyond internal use — raw images are **not** re-hosted in
-  this repo.
+  encryption (password)." No redistribution beyond internal use, raw
+  images are **not** re-hosted in this repo.
 - **Access method:** direct download from Google Drive, no account approval
   needed. Six files: `img.zip` (images), `list_attr_cloth.txt` /
   `list_attr_img.txt` (attribute vocabulary / per-image labels),
@@ -35,30 +30,24 @@ python stylematch/similarity/dataset.py
 ```
 
 Downloads all six files into `data/raw/deepfashion/` and extracts
-`img.zip`. Safe to re-run — already-downloaded files are skipped by
+`img.zip`. Safe to re-run, already-downloaded files are skipped by
 default (`--skip-existing`, on by default). If a run is interrupted or
 partially fails, just run it again; it picks up wherever it left off.
 
 **Google Drive throttling:** these files are shared publicly, which means
 Google Drive sometimes rate-limits downloads with a "too many users have
-viewed or downloaded this file recently" error — this is on Google's end,
-not something our account/link settings can avoid. The script keeps going
-if one file hits this (so a block on the large `img.zip` doesn't stop the
+viewed or downloaded this file recently" error. The script keeps going if
+one file hits this (so a block on the large `img.zip` doesn't stop the
 small label files from downloading), and prints a one-line summary at the
 end, e.g. `SUMMARY: 4/6 files done so far, rate limit likely blocking the
-rest`. If you hit this, just wait and re-run later — it's usually
-resolved within an hour or so. For a fully hands-off retry, see
-`Documents/MADS/Capstone/automation/` for an hourly-retry-with-notification
-setup (personal tooling, outside this repo, not required to use the
-script).
+rest`. If you hit this, just wait and re-run later, it's usually resolved
+within an hour or so.
 
 ### Option 2: manual download
 
 If the script keeps hitting rate limits, each file can be downloaded by
-hand from its Drive link below — open in a browser, click through the "too
-many downloads" warning if shown (it still offers a direct download
-option), and save into `data/raw/deepfashion/` under the exact filename
-listed.
+hand from its Drive link below, and saved into `data/raw/deepfashion/`
+under the exact filename listed.
 
 | File | Link |
 |---|---|
@@ -71,7 +60,7 @@ listed.
 
 After a manual `img.zip` download, extract it into
 `data/raw/deepfashion/` (should produce an `img/` folder with ~5,600
-category subfolders) — re-running the script afterward will detect the
+category subfolders), re-running the script afterward will detect the
 extracted folder and skip re-extracting.
 
 ---
@@ -84,26 +73,26 @@ extracted folder and skip re-extracting.
   (paper: https://arxiv.org/abs/1803.09196, original repo:
   https://github.com/mvasil/fashion-compatibility)
 - **Owner:** Mariya I. Vasileva et al., 2018
-- **License:** gated — requires requesting access on Hugging Face with an
+- **License:** gated, requires requesting access on Hugging Face with an
   institutional/research-affiliated email, subject to manual approval.
   Explicitly "intended solely for academic and non-profit research
   purposes." We're requesting access with a university email and treating
   it as academic-use-only; no redistribution.
 - **Access method:** request access at the Hugging Face link above
-  (institutional email required). *Status: access request pending — will
-  be updated here once approved and the download pipeline
-  (`stylematch/compatibility/dataset.py`) is in place.*
+  (institutional email required). Status: access request pending, will be
+  updated here once approved and the download pipeline
+  (`stylematch/compatibility/dataset.py`) is in place.
 
 ---
 
-## AFRIFASHION1600 *(stretch goal only — bias-generalization evaluation)*
+## AFRIFASHION1600 *(stretch goal only, bias generalization evaluation)*
 
-**Used for:** optional, time-permitting evaluation of whether the
+**Used for:** optional, time permitting evaluation of whether the
 similarity engine generalizes to underrepresented African fashion styles.
 Not part of the committed MVP, not used for training.
 
 - **Source:** https://github.com/DataScienceNigeria/Research-Papers-by-Data-Science-Nigeria/tree/master/AFRIFASHION1600%3A%20A%20Contemporary%20African%20Fashion%20Dataset%20for%20Computer%20Vision
-  (Oyewusi et al., CVPR 2021 Workshop) — the official repository of the
+  (Oyewusi et al., CVPR 2021 Workshop), the official repository of the
   research group behind the paper.
 - **Owner:** Data Science Nigeria / Oyewusi et al.
 - **License:** no formal license tag. The repository's README states it
@@ -112,5 +101,5 @@ Not part of the committed MVP, not used for training.
   same way as DeepFashion: academic/research use, proper citation, no
   re-hosting of raw images in this repo.
 - **Access method:** direct download from the repository above, no request
-  process. Not yet downloaded — only needed if the team reaches the
+  process. Not yet downloaded, only needed if the team reaches the
   stretch goal.
