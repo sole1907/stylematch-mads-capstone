@@ -13,13 +13,14 @@ Clone the repo and set up a virtual environment:
 ```bash
 git clone https://github.com/sole1907/stylematch-mads-capstone.git
 cd stylematch-mads-capstone
-python -m venv venv
+python3 -m venv venv
 source venv/bin/activate   # Windows: venv\Scripts\activate
+pip install --upgrade pip setuptools wheel
 pip install -r requirements.txt
 ```
 
-*Dataset download/access instructions will be added here once the data pipelines
-are in place.*
+See [`DATA_ACCESS.md`](DATA_ACCESS.md) for dataset sources, access methods,
+and license restrictions.
 
 ## Project Organization
 
