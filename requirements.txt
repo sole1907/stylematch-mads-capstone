@@ -6,6 +6,7 @@ matplotlib
 notebook
 numpy
 pandas
+Pillow
 pip
 pytest
 python-dotenv
