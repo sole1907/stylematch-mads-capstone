@@ -4,7 +4,7 @@
     <img src="https://img.shields.io/badge/CCDS-Project%20template-328F97?logo=cookiecutter" />
 </a>
 
-Two-stage visual fashion recommendation system (similarity + compatibility engines) — SIADS 699 capstone, Team StyleMatch
+Two-stage visual fashion recommendation system (similarity + compatibility engines), SIADS 699 capstone, Team StyleMatch
 
 ## Setup
 
@@ -53,6 +53,10 @@ and license restrictions.
 ├── requirements.txt   <- The requirements file for reproducing the analysis environment, e.g.
 │                         generated with `pip freeze > requirements.txt`
 │
+├── scripts            <- One-off setup/utility scripts, not imported by any
+│   │                     pipeline or training code
+│   └── download_deepfashion.py  <- Fetches the DeepFashion CAP subset
+│
 ├── setup.cfg          <- Configuration file for flake8
 │
 └── stylematch   <- Source code for use in this project.
@@ -65,11 +69,12 @@ and license restrictions.
     │
     ├── features.py             <- Not yet in use (generic scaffold stub,
     │                              undecided whether needed for image-based
-    │                              models — revisit later)
+    │                              models, revisit later)
     │
     ├── similarity              <- Similarity engine (DeepFashion)
     │   ├── __init__.py
-    │   ├── dataset.py          <- DeepFashion data loading
+    │   ├── dataset.py          <- PyTorch Dataset over the downloaded CAP
+    │   │                          subset (see scripts/download_deepfashion.py)
     │   ├── model.py            <- Backbone + embedding head
     │   ├── train.py            <- Training loop (triplet/contrastive loss)
     │   └── predict.py          <- Retrieval inference

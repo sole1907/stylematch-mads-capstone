@@ -5,7 +5,7 @@ restrictions apply.
 
 ---
 
-## DeepFashion — Category and Attribute Prediction (CAP) subset
+## DeepFashion: Category and Attribute Prediction (CAP) subset
 
 **Used for:** similarity engine training.
 
@@ -26,7 +26,7 @@ restrictions apply.
 ### Option 1: automated script
 
 ```bash
-python stylematch/similarity/dataset.py
+python scripts/download_deepfashion.py
 ```
 
 Downloads all six files into `data/raw/deepfashion/` and extracts
@@ -63,6 +63,10 @@ After a manual `img.zip` download, extract it into
 category subfolders), re-running the script afterward will detect the
 extracted folder and skip re-extracting.
 
+For what's actually inside the annotation files (category/attribute
+vocabulary, encoding, the train/val/test split), see
+[`references/deepfashion_schema.md`](references/deepfashion_schema.md).
+
 ---
 
 ## Polyvore Outfits
@@ -80,8 +84,7 @@ extracted folder and skip re-extracting.
   it as academic-use-only; no redistribution.
 - **Access method:** request access at the Hugging Face link above
   (institutional email required). Status: access request pending, will be
-  updated here once approved and the download pipeline
-  (`stylematch/compatibility/dataset.py`) is in place.
+  updated here once approved and the download pipeline is in place.
 
 ---
 
