@@ -4,10 +4,9 @@
 See `scripts/download_deepfashion.py` to fetch the underlying files, and
 `references/deepfashion_schema.md` for what's inside them.
 
-This is the Week 1 mock pipeline: real file parsing and real images, but
-capped to a small sample by default, fast enough for local iteration
-while the full dataset stays untouched. Expected to be reviewed and
-possibly replaced or extended by Yuzuru's own pipeline PR in Week 2.
+This is a mock pipeline: real file parsing and real images, but capped
+to a small sample by default, fast enough for local iteration while the
+full dataset stays untouched.
 """
 
 from pathlib import Path
@@ -24,7 +23,7 @@ NUM_ATTRIBUTES = 1000
 
 # Placeholder preprocessing size, used only when no transform is passed in.
 # Stands in until the real backbone's own preprocessing (Marqo-FashionCLIP,
-# via open_clip, added in Week 2) replaces this.
+# via open_clip) replaces this.
 MOCK_IMAGE_SIZE = 224
 
 
@@ -62,9 +61,7 @@ class DeepFashionCAPDataset(Dataset):
                 If None, a minimal placeholder (resize + scale to [0, 1])
                 is used instead.
             sample_size: cap on how many matching images to load. Defaults
-                to 100, matching the Week 1 checklist's "small sample
-                (50-100 images)" scope. Pass None to load every image in
-                the split.
+                to 100. Pass None to load every image in the split.
         """
         if split not in ("train", "val", "test"):
             raise ValueError(f"split must be 'train', 'val', or 'test', got {split!r}")
