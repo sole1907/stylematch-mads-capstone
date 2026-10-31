@@ -48,6 +48,8 @@ class DeepFashionCAPDataset(Dataset):
         split: str = "train",
         transform=None,
         sample_size: int | None = 100,
+        min_images_per_category: int | None = None,
+        num_categories: int | None = None,
     ) -> None:
         """
         Args:
@@ -60,14 +62,37 @@ class DeepFashionCAPDataset(Dataset):
                 whatever the chosen backbone (Marqo-FashionCLIP) requires.
                 If None, a minimal placeholder (resize + scale to [0, 1])
                 is used instead.
-            sample_size: cap on how many matching images to load. Defaults
-                to 100. Pass None to load every image in the split.
+            sample_size: cap on how many matching images to load, in
+                file order. Defaults to 100. Pass None to load every
+                image in the split. Ignored if min_images_per_category
+                is set (see below), since the underlying annotation file
+                is clustered by category in blocks, confirmed: the first
+                16 matches are all a single category, so a plain
+                first-N sample can't give a batch sampler the category
+                diversity it needs.
+            min_images_per_category: if set, switches loading from
+                "first `sample_size` matching images" to "collect
+                `num_categories` distinct categories that each have at
+                least this many images." Needed so a category-balanced
+                batch sampler (sampler.py) always has same-category
+                positives and different-category negatives to mine
+                triplets from. Mock stand-in for the real pipeline;
+                None (default) preserves the original first-N behavior.
+            num_categories: required when min_images_per_category is
+                set; how many distinct qualifying categories to collect.
         """
         if split not in ("train", "val", "test"):
             raise ValueError(f"split must be 'train', 'val', or 'test', got {split!r}")
+        if min_images_per_category is not None and num_categories is None:
+            raise ValueError("num_categories is required when min_images_per_category is set")
         self.root = Path(root)
         self.transform = transform
-        self.samples = self._load_samples(split, sample_size)
+        if min_images_per_category is not None:
+            self.samples = self._load_stratified_samples(
+                split, min_images_per_category, num_categories
+            )
+        else:
+            self.samples = self._load_samples(split, sample_size)
 
     def _load_samples(
         self, split: str, sample_size: int | None
@@ -112,6 +137,72 @@ class DeepFashionCAPDataset(Dataset):
                 if sample_size is not None and len(samples) >= sample_size:
                     break
 
+        return samples
+
+    def _load_stratified_samples(
+        self, split: str, min_images_per_category: int, num_categories: int
+    ) -> list[tuple[str, int, list[int]]]:
+        """Collects `num_categories` distinct categories that each have
+        at least `min_images_per_category` images, scanning further into
+        the file than `_load_samples` would, since categories arrive in
+        contiguous blocks, not interleaved. Duplicates some parsing logic
+        from `_load_samples` rather than sharing it, this is mock/
+        temporary code meant to be replaced wholesale by the real
+        pipeline, not worth a shared abstraction for.
+        """
+        by_category: dict[int, list[tuple[str, int, list[int]]]] = {}
+        category_path = self.root / "list_category_img.txt"
+        attr_path = self.root / "list_attr_img.txt"
+        partition_path = self.root / "list_eval_partition.txt"
+
+        with (
+            open(category_path) as cat_f,
+            open(attr_path) as attr_f,
+            open(partition_path) as part_f,
+        ):
+            for _ in range(2):
+                next(cat_f)
+                next(attr_f)
+                next(part_f)
+
+            for cat_line, attr_line, part_line in zip(cat_f, attr_f, part_f):
+                cat_parts = cat_line.split()
+                attr_parts = attr_line.split()
+                part_parts = part_line.split()
+
+                image_name = cat_parts[0]
+                if attr_parts[0] != image_name or part_parts[0] != image_name:
+                    raise ValueError(f"annotation files out of sync at {image_name!r}")
+                if part_parts[1] != split:
+                    continue
+
+                category_label = int(cat_parts[1]) - 1
+                bucket = by_category.setdefault(category_label, [])
+                if len(bucket) >= min_images_per_category:
+                    continue  # this category already has enough
+
+                attribute_label = [int(v) for v in attr_parts[1:]]
+                bucket.append((image_name, category_label, attribute_label))
+
+                qualifying = sum(
+                    1 for b in by_category.values() if len(b) >= min_images_per_category
+                )
+                if qualifying >= num_categories:
+                    break
+
+        qualifying_categories = [
+            cat for cat, bucket in by_category.items() if len(bucket) >= min_images_per_category
+        ][:num_categories]
+        if len(qualifying_categories) < num_categories:
+            raise ValueError(
+                f"only found {len(qualifying_categories)} categories with >= "
+                f"{min_images_per_category} images in split {split!r}, "
+                f"requested {num_categories}"
+            )
+
+        samples = []
+        for category in qualifying_categories:
+            samples.extend(by_category[category])
         return samples
 
     def __len__(self) -> int:

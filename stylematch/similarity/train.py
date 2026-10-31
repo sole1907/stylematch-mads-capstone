@@ -1,110 +1,128 @@
-"""Stub training loop for the similarity engine.
+"""Training loop for the similarity engine.
 
-Proves the training loop plumbing works end-to-end: data loads, a forward
-pass runs, a loss computes, backward() + optimizer.step() update weights.
-
-Uses a throwaway placeholder model defined here, not the real
-SimilarityModel in model.py. Loading the real Marqo-FashionCLIP backbone
-and building the real model are separate, later work. The loss here is
-also a placeholder for the same reason.
+Uses the real SimilarityModel (model.py), real preprocessing, and the
+real pytorch-metric-learning triplet loss now. Batch construction uses
+CategoryBalancedBatchSampler (sampler.py), a mock stand-in for the real
+DeepFashion pipeline, needed so every batch actually has same-category
+positives and different-category negatives for triplet mining to find.
 """
 
 from loguru import logger
+from pytorch_metric_learning import losses, miners
 import torch
-from torch import nn
 from torch.utils.data import DataLoader
 
-from stylematch.similarity.dataset import MOCK_IMAGE_SIZE, DeepFashionCAPDataset
+from stylematch.similarity.dataset import DeepFashionCAPDataset
+from stylematch.similarity.model import SimilarityModel
+from stylematch.similarity.sampler import CategoryBalancedBatchSampler
 
 
-class _PlaceholderModel(nn.Module):
-    """Throwaway stand-in for SimilarityModel (model.py), used only to
-    prove the training loop runs end-to-end. Flattens each image and
-    projects it down to a small embedding with a single linear layer, not
-    meant to produce meaningful embeddings."""
-
-    def __init__(self, embedding_dim: int = 64):
-        super().__init__()
-        input_dim = 3 * MOCK_IMAGE_SIZE * MOCK_IMAGE_SIZE
-        self.projection = nn.Linear(input_dim, embedding_dim)
-
-    def forward(self, images: torch.Tensor) -> torch.Tensor:
-        flattened = images.flatten(start_dim=1)
-        return self.projection(flattened)
-
-
-def run_stub_training_loop(
+def run_training_loop(
     num_steps: int = 3,
-    batch_size: int = 4,
-    sample_size: int = 16,
+    categories_per_batch: int = 4,
+    images_per_category: int = 4,
+    num_categories: int = 20,
     learning_rate: float = 1e-3,
+    freeze_until_block: int = 8,
+    embedding_dim: int = 256,
+    margin: float = 0.2,
 ) -> list[float]:
-    """Runs a handful of steps end-to-end against the mock dataset.
+    """Runs a handful of steps end-to-end against a real, category-
+    balanced DeepFashion subset, using the real SimilarityModel and the
+    real triplet loss.
 
-    Returns the loss recorded at each step, mainly so a caller or test can
-    confirm it's actually changing (gradients are flowing through the
-    whole pipeline), not that it's meaningfully decreasing. The loss
-    itself isn't real yet.
+    Returns the loss recorded at each step.
     """
-    dataset = DeepFashionCAPDataset(split="train", sample_size=sample_size)
-    logger.info(f"Loaded {len(dataset)} images (split='train', sample_size={sample_size})")
+    model = SimilarityModel(embedding_dim=embedding_dim, freeze_until_block=freeze_until_block)
 
-    loader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
-    steps_per_epoch = len(loader)
+    dataset = DeepFashionCAPDataset(
+        split="train",
+        transform=model.preprocess_train,
+        min_images_per_category=images_per_category,
+        num_categories=num_categories,
+    )
     logger.info(
-        f"batch_size={batch_size} -> {steps_per_epoch} steps per epoch "
-        f"(requested num_steps={num_steps}, "
+        f"Loaded {len(dataset)} images across {num_categories} categories "
+        f"(split='train', >= {images_per_category} images each)"
+    )
+
+    batch_sampler = CategoryBalancedBatchSampler(
+        dataset, categories_per_batch=categories_per_batch, images_per_category=images_per_category
+    )
+    loader = DataLoader(dataset, batch_sampler=batch_sampler)
+    steps_per_epoch = len(loader)
+    effective_batch_size = categories_per_batch * images_per_category
+    logger.info(
+        f"effective batch_size={effective_batch_size} "
+        f"({categories_per_batch} categories x {images_per_category} images) -> "
+        f"{steps_per_epoch} steps per epoch (requested num_steps={num_steps}, "
         f"{num_steps / steps_per_epoch:.2f} epochs)"
     )
 
-    model = _PlaceholderModel()
-    num_params = sum(p.numel() for p in model.parameters())
+    trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    total = sum(p.numel() for p in model.parameters())
     logger.info(
-        f"_PlaceholderModel: 1 linear layer, {num_params:,} learnable "
-        f"parameters (weights + biases)"
+        f"SimilarityModel: freeze_until_block={freeze_until_block}, "
+        f"{trainable:,} / {total:,} trainable parameters ({trainable / total:.1%})"
     )
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+    # Only trainable parameters, not all of model.parameters(): most of
+    # the backbone is frozen now, and handing Adam frozen params would
+    # waste memory on momentum buffers that never get used.
+    trainable_params = [p for p in model.parameters() if p.requires_grad]
+    optimizer = torch.optim.Adam(trainable_params, lr=learning_rate)
 
-    losses = []
+    # Real triplet loss now, not a placeholder. Mining on category_label
+    # alone, not category + attributes together, as a deliberate known
+    # simplification (see dev-notes/architecture-decision.md's
+    # pair/triplet construction note): visually different items sharing
+    # a broad category could get pulled together. Attribute-aware
+    # pairing is a planned refinement, not blocking this first real pass.
+    loss_fn = losses.TripletMarginLoss(margin=margin)
+    miner_fn = miners.TripletMarginMiner(margin=margin, type_of_triplets="all")
+
+    losses_recorded = []
     data_iter = iter(loader)
     epoch = 1
     for step in range(1, num_steps + 1):
         try:
-            images, _category_labels, _attribute_labels = next(data_iter)
+            images, category_labels, _attribute_labels = next(data_iter)
         except StopIteration:
             epoch += 1
-            logger.info(f"-- epoch {epoch} starts (data reshuffled) --")
+            logger.info(f"-- epoch {epoch} starts (batches reshuffled) --")
             data_iter = iter(loader)
-            images, _category_labels, _attribute_labels = next(data_iter)
+            images, category_labels, _attribute_labels = next(data_iter)
 
         embeddings = model(images)
 
-        # Placeholder loss: pulls embeddings toward zero, just needs to
-        # depend on the model's output so backward() has something to
-        # compute gradients for. Stands in for the real triplet loss.
-        loss = embeddings.pow(2).mean()
+        indices_tuple = miner_fn(embeddings, category_labels)
+        num_triplets = indices_tuple[0].numel()
+        loss = loss_fn(embeddings, category_labels, indices_tuple)
 
         optimizer.zero_grad()
         loss.backward()
-        grad_norm = model.projection.weight.grad.norm().item()
+        # Total gradient norm across every trainable parameter, not one
+        # hardcoded layer, since there's no single ".weight" that stands
+        # in for "the model."
+        grad_norm = torch.sqrt(
+            sum(p.grad.norm() ** 2 for p in trainable_params if p.grad is not None)
+        ).item()
         optimizer.step()
 
-        losses.append(loss.item())
+        losses_recorded.append(loss.item())
         logger.info(
             f"step {step}/{num_steps}: images {tuple(images.shape)} -> "
-            f"embeddings {tuple(embeddings.shape)} | loss={loss.item():.4f} "
-            f"| grad_norm={grad_norm:.4f} (confirms backward() computed "
-            f"real gradients) | weights updated"
+            f"embeddings {tuple(embeddings.shape)} | triplets mined={num_triplets} "
+            f"| loss={loss.item():.4f} | grad_norm={grad_norm:.4f} | weights updated"
         )
 
     logger.success(
-        f"Done. Loss went {losses[0]:.4f} -> {losses[-1]:.4f} over "
-        f"{num_steps} steps (not meaningful yet, just confirms it moved)"
+        f"Done. Loss went {losses_recorded[0]:.4f} -> {losses_recorded[-1]:.4f} "
+        f"over {num_steps} steps."
     )
-    return losses
+    return losses_recorded
 
 
 if __name__ == "__main__":
-    recorded_losses = run_stub_training_loop()
-    print(f"Stub training loop losses: {recorded_losses}")
+    recorded_losses = run_training_loop()
+    print(f"Training loop losses: {recorded_losses}")

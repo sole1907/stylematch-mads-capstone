@@ -5,11 +5,13 @@ loguru
 matplotlib
 notebook
 numpy
+open_clip_torch
 pandas
 Pillow
 pip
 pytest
 python-dotenv
+pytorch-metric-learning
 ruff
 scikit-learn
 torch
