@@ -1,36 +1,14 @@
-"""Stub training loop for the similarity engine.
+"""Training loop for the similarity engine.
 
-Proves the training loop plumbing works end-to-end: data loads, a forward
-pass runs, a loss computes, backward() + optimizer.step() update weights.
-
-Uses a throwaway placeholder model defined here, not the real
-SimilarityModel in model.py. Loading the real Marqo-FashionCLIP backbone
-and building the real model are separate, later work. The loss here is
-also a placeholder for the same reason.
+Uses the real SimilarityModel (model.py) and real preprocessing now.
 """
 
 from loguru import logger
 import torch
-from torch import nn
 from torch.utils.data import DataLoader
 
-from stylematch.similarity.dataset import MOCK_IMAGE_SIZE, DeepFashionCAPDataset
-
-
-class _PlaceholderModel(nn.Module):
-    """Throwaway stand-in for SimilarityModel (model.py), used only to
-    prove the training loop runs end-to-end. Flattens each image and
-    projects it down to a small embedding with a single linear layer, not
-    meant to produce meaningful embeddings."""
-
-    def __init__(self, embedding_dim: int = 64):
-        super().__init__()
-        input_dim = 3 * MOCK_IMAGE_SIZE * MOCK_IMAGE_SIZE
-        self.projection = nn.Linear(input_dim, embedding_dim)
-
-    def forward(self, images: torch.Tensor) -> torch.Tensor:
-        flattened = images.flatten(start_dim=1)
-        return self.projection(flattened)
+from stylematch.similarity.dataset import DeepFashionCAPDataset
+from stylematch.similarity.model import SimilarityModel
 
 
 def run_stub_training_loop(
@@ -38,15 +16,19 @@ def run_stub_training_loop(
     batch_size: int = 4,
     sample_size: int = 16,
     learning_rate: float = 1e-3,
+    freeze_until_block: int = 8,
+    embedding_dim: int = 256,
 ) -> list[float]:
-    """Runs a handful of steps end-to-end against the mock dataset.
+    """Runs a handful of steps end-to-end against a real DeepFashion
+    subset, using the real SimilarityModel.
 
-    Returns the loss recorded at each step, mainly so a caller or test can
-    confirm it's actually changing (gradients are flowing through the
-    whole pipeline), not that it's meaningfully decreasing. The loss
-    itself isn't real yet.
+    Returns the loss recorded at each step.
     """
-    dataset = DeepFashionCAPDataset(split="train", sample_size=sample_size)
+    model = SimilarityModel(embedding_dim=embedding_dim, freeze_until_block=freeze_until_block)
+
+    dataset = DeepFashionCAPDataset(
+        split="train", sample_size=sample_size, transform=model.preprocess_train
+    )
     logger.info(f"Loaded {len(dataset)} images (split='train', sample_size={sample_size})")
 
     loader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
@@ -57,14 +39,18 @@ def run_stub_training_loop(
         f"{num_steps / steps_per_epoch:.2f} epochs)"
     )
 
-    model = _PlaceholderModel()
-    num_params = sum(p.numel() for p in model.parameters())
+    trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    total = sum(p.numel() for p in model.parameters())
     logger.info(
-        f"_PlaceholderModel: 1 linear layer, {num_params:,} learnable "
-        f"parameters (weights + biases)"
+        f"SimilarityModel: freeze_until_block={freeze_until_block}, "
+        f"{trainable:,} / {total:,} trainable parameters ({trainable / total:.1%})"
     )
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+    # Only trainable parameters, not all of model.parameters(): most of
+    # the backbone is frozen now, and handing Adam frozen params would
+    # waste memory on momentum buffers that never get used.
+    trainable_params = [p for p in model.parameters() if p.requires_grad]
+    optimizer = torch.optim.Adam(trainable_params, lr=learning_rate)
 
     losses = []
     data_iter = iter(loader)
@@ -80,14 +66,27 @@ def run_stub_training_loop(
 
         embeddings = model(images)
 
-        # Placeholder loss: pulls embeddings toward zero, just needs to
-        # depend on the model's output so backward() has something to
-        # compute gradients for. Stands in for the real triplet loss.
-        loss = embeddings.pow(2).mean()
+        # Placeholder loss: each embedding's alignment with the batch's
+        # mean direction, pushed toward 0. NOT embeddings.pow(2).mean()
+        # (the old stub's placeholder) — once the model L2-normalizes its
+        # output, every embedding's squared values always sum to 1 by
+        # construction, so mean(embeddings**2) is a *constant*
+        # (1/embedding_dim, confirmed: 0.0039 = 1/256) with zero gradient
+        # everywhere. This version depends on the embeddings' directions
+        # relative to each other instead, which normalization doesn't fix,
+        # so it actually has a gradient. Still arbitrary, still stands in
+        # for the real triplet loss.
+        batch_direction = embeddings.mean(dim=0)
+        loss = (embeddings @ batch_direction).pow(2).mean()
 
         optimizer.zero_grad()
         loss.backward()
-        grad_norm = model.projection.weight.grad.norm().item()
+        # Total gradient norm across every trainable parameter, not one
+        # hardcoded layer, since there's no single ".weight" that stands
+        # in for "the model" the way the old placeholder's did.
+        grad_norm = torch.sqrt(
+            sum(p.grad.norm() ** 2 for p in trainable_params if p.grad is not None)
+        ).item()
         optimizer.step()
 
         losses.append(loss.item())
