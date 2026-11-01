@@ -7,11 +7,14 @@ DeepFashion pipeline, needed so every batch actually has same-category
 positives and different-category negatives for triplet mining to find.
 """
 
+from pathlib import Path
+
 from loguru import logger
 from pytorch_metric_learning import losses, miners
 import torch
 from torch.utils.data import DataLoader
 
+from stylematch.config import MODELS_DIR
 from stylematch.similarity.dataset import DeepFashionCAPDataset
 from stylematch.similarity.model import SimilarityModel
 from stylematch.similarity.sampler import CategoryBalancedBatchSampler
@@ -26,12 +29,22 @@ def run_training_loop(
     freeze_until_block: int = 8,
     embedding_dim: int = 256,
     margin: float = 0.2,
-) -> list[float]:
+    checkpoint_path: Path | None = None,
+) -> tuple[SimilarityModel, list[float]]:
     """Runs a handful of steps end-to-end against a real, category-
     balanced DeepFashion subset, using the real SimilarityModel and the
     real triplet loss.
 
-    Returns the loss recorded at each step.
+    Args:
+        checkpoint_path: if given, saves the trained model's state_dict
+            here after training, so it can be reloaded and evaluated in
+            a later, separate session. If None (default), nothing is
+            saved to disk, only returned in memory.
+
+    Returns:
+        (model, losses): the trained model (already in memory, usable
+        immediately without reloading from disk) and the loss recorded
+        at each step.
     """
     model = SimilarityModel(embedding_dim=embedding_dim, freeze_until_block=freeze_until_block)
 
@@ -120,9 +133,18 @@ def run_training_loop(
         f"Done. Loss went {losses_recorded[0]:.4f} -> {losses_recorded[-1]:.4f} "
         f"over {num_steps} steps."
     )
-    return losses_recorded
+
+    if checkpoint_path is not None:
+        checkpoint_path = Path(checkpoint_path)
+        checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
+        torch.save(model.state_dict(), checkpoint_path)
+        logger.info(f"Saved checkpoint to {checkpoint_path}")
+
+    return model, losses_recorded
 
 
 if __name__ == "__main__":
-    recorded_losses = run_training_loop()
+    trained_model, recorded_losses = run_training_loop(
+        checkpoint_path=MODELS_DIR / "similarity_first_run.pt"
+    )
     print(f"Training loop losses: {recorded_losses}")
