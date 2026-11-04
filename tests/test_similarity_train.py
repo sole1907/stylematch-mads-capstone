@@ -6,6 +6,7 @@ DeepFashion CAP subset to already be downloaded; skipped otherwise.
 import pytest
 
 from stylematch.config import DEEPFASHION_DIR
+from stylematch.similarity.model import SimilarityModel
 from stylematch.similarity.train import run_training_loop
 
 pytestmark = pytest.mark.skipif(
@@ -15,10 +16,11 @@ pytestmark = pytest.mark.skipif(
 
 
 def test_runs_end_to_end_and_loss_changes():
-    losses = run_training_loop(
+    model, losses = run_training_loop(
         num_steps=3, categories_per_batch=4, images_per_category=4, num_categories=20
     )
 
+    assert isinstance(model, SimilarityModel)
     assert len(losses) == 3
     assert all(isinstance(loss, float) for loss in losses)
     # Not claiming the loss meaningfully decreases over just 3 steps on a
