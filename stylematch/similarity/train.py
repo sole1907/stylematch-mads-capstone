@@ -10,11 +10,12 @@ positives and different-category negatives for triplet mining to find.
 from pathlib import Path
 
 from loguru import logger
-from pytorch_metric_learning import losses, miners
+from pytorch_metric_learning import losses
 import torch
 from torch.utils.data import DataLoader
 
 from stylematch.config import MODELS_DIR
+from stylematch.similarity.attribute_mining import DEFAULT_MIN_SHARED_ATTRIBUTES, mine_attribute_aware_triplets
 from stylematch.similarity.dataset import DeepFashionCAPDataset
 from stylematch.similarity.model import SimilarityModel
 from stylematch.similarity.sampler import CategoryBalancedBatchSampler
@@ -29,6 +30,7 @@ def run_training_loop(
     freeze_until_block: int = 8,
     embedding_dim: int = 256,
     margin: float = 0.2,
+    min_shared_attributes: int = DEFAULT_MIN_SHARED_ATTRIBUTES,
     checkpoint_path: Path | None = None,
 ) -> tuple[SimilarityModel, list[float]]:
     """Runs a handful of steps end-to-end against a real, category-
@@ -85,32 +87,35 @@ def run_training_loop(
     trainable_params = [p for p in model.parameters() if p.requires_grad]
     optimizer = torch.optim.Adam(trainable_params, lr=learning_rate)
 
-    # Real triplet loss now, not a placeholder. Mining on category_label
-    # alone, not category + attributes together, as a deliberate known
-    # simplification (see dev-notes/architecture-decision.md's
-    # pair/triplet construction note): visually different items sharing
-    # a broad category could get pulled together. Attribute-aware
-    # pairing is a planned refinement, not blocking this first real pass.
+    # Real triplet loss. Mining on category + attribute overlap together
+    # now, not category alone (see attribute_mining.py and
+    # dev-notes/architecture-decision.md's pair/triplet construction
+    # note, committed to mentor feedback): a custom miner is used
+    # instead of pytorch-metric-learning's built-in label-based
+    # TripletMarginMiner, since "same category AND shares >= N
+    # attributes" isn't a transitive relation and can't be expressed as
+    # a single scalar label the way category alone can.
     loss_fn = losses.TripletMarginLoss(margin=margin)
-    miner_fn = miners.TripletMarginMiner(margin=margin, type_of_triplets="all")
 
     losses_recorded = []
     data_iter = iter(loader)
     epoch = 1
     for step in range(1, num_steps + 1):
         try:
-            images, category_labels, _attribute_labels = next(data_iter)
+            images, category_labels, attribute_labels = next(data_iter)
         except StopIteration:
             epoch += 1
             logger.info(f"-- epoch {epoch} starts (batches reshuffled) --")
             data_iter = iter(loader)
-            images, category_labels, _attribute_labels = next(data_iter)
+            images, category_labels, attribute_labels = next(data_iter)
 
         embeddings = model(images)
 
-        indices_tuple = miner_fn(embeddings, category_labels)
+        indices_tuple = mine_attribute_aware_triplets(
+            category_labels, attribute_labels, min_shared_attributes=min_shared_attributes
+        )
         num_triplets = indices_tuple[0].numel()
-        loss = loss_fn(embeddings, category_labels, indices_tuple)
+        loss = loss_fn(embeddings, labels=None, indices_tuple=indices_tuple)
 
         optimizer.zero_grad()
         loss.backward()
