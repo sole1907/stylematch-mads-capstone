@@ -20,11 +20,7 @@ from stylematch.similarity.train import run_training_loop
 
 @dataclass
 class TrainingConfig:
-    """One set of tunable training hyperparameters. Defaults match
-    train.py's own defaults, except learning_rate, which defaults here
-    to the value a real before/after comparison showed actually helps
-    (1e-3, train.py's original default, was confirmed to actively hurt
-    performance by over-disrupting the pretrained backbone)."""
+    """One set of tunable training hyperparameters."""
 
     learning_rate: float = 1e-5
     freeze_until_block: int = 8
@@ -47,9 +43,7 @@ def build_grid(
     learning_rate / num_steps / margin / freeze_until_block values as
     TrainingConfig objects. Any other TrainingConfig field (e.g.
     num_categories) can be fixed across the whole grid via
-    fixed_kwargs. Intended for unattended runs on real compute (Great
-    Lakes), where you want to kick off the full grid once rather than
-    build the combination list by hand.
+    fixed_kwargs.
     """
     combos = product(learning_rate, num_steps, margin, freeze_until_block)
     return [
@@ -196,12 +190,6 @@ def run_staged_search(
     else at the best config found by the *previous* stage, then that
     stage's winner (by `improvement`) gets carried forward automatically.
 
-    This is what turns "run stage 1, look at the winner, manually set up
-    stage 2 with it" into something you kick off once and walk away
-    from, no step-by-step babysitting needed. Much cheaper than a full
-    combinatorial grid across all parameters at once, each stage only
-    varies 1-2 fields, not the full cross product of everything.
-
     Args:
         stages: ordered list of dicts, each naming which TrainingConfig
             field(s) to vary that stage and what values to try, e.g.
@@ -236,14 +224,6 @@ def run_staged_search(
             configs, results_path=results_dir / f"staged_search_stage_{stage_num}.csv"
         )
 
-        # Pulling the winning *config object* directly (not reading its
-        # values back out of the DataFrame row): stage_results.loc[idx]
-        # would return that row as a pandas Series, and a Series can
-        # only hold one dtype, so mixing this row's int and float
-        # columns silently upcasts everything in it to float (confirmed
-        # this bug directly: freeze_until_block=6 became 6.0, which then
-        # crashed a later list slice expecting an int). Going back to
-        # the original configs list avoids that round-trip entirely.
         winner_idx = stage_results["improvement"].idxmax()
         winning_config = configs[winner_idx]
         winning_improvement = stage_results.loc[winner_idx, "improvement"]
@@ -273,6 +253,41 @@ def run_staged_search(
     return current_best, summary
 
 
+def run_staged_search_lite(
+    stages: list[dict[str, list]] | None = None,
+    base_config: TrainingConfig | None = None,
+    results_dir: Path = REPORTS_DIR / "sweep_lite",
+) -> tuple[TrainingConfig, pd.DataFrame]:
+    """Same mechanics as run_staged_search, scaled down for a fast local
+    check: small hyperparameter lists, few training steps, few
+    categories. Confirms the search machinery itself works (joint-stage
+    winner carry-forward, resume-on-rerun), not meant to produce
+    trustworthy hyperparameter conclusions, that's what the full-scale
+    search in __main__ (sized for real compute) is for.
+
+    Writes to its own results_dir (reports/sweep_lite/ by default),
+    separate from the real search's reports/staged_search_stage_*.csv,
+    so local test runs never mix with real results and can be deleted
+    at any time without touching anything that matters.
+
+    Args:
+        stages: same shape as run_staged_search's `stages`. Defaults to
+            a small 2-stage version if not given.
+        base_config: starting point. Defaults to a fast local config
+            (5 steps, 10 categories) if not given.
+        results_dir: defaults to a dedicated "lite" subdirectory.
+    """
+    if stages is None:
+        stages = [
+            {"learning_rate": [1e-4, 1e-5], "freeze_until_block": [6, 8]},
+            {"margin": [0.1, 0.2]},
+        ]
+    if base_config is None:
+        base_config = TrainingConfig(num_steps=5, num_categories=10)
+
+    return run_staged_search(stages=stages, base_config=base_config, results_dir=results_dir)
+
+
 if __name__ == "__main__":
     # learning_rate and freeze_until_block are searched *jointly* in one
     # stage, not sequentially: both govern how much the pretrained
@@ -280,22 +295,11 @@ if __name__ == "__main__":
     # parameters can move, LR controls how far each one moves), so
     # they're plausibly coupled, fixing one before searching the other
     # risks finding a freeze depth that's only good conditional on a
-    # possibly-wrong LR. The 1e-4 default used elsewhere came from a
-    # single small-data sweep and was never actually confirmed to hold
-    # at a different dataset size, don't treat it as settled, this
-    # stage re-checks it rather than assuming it.
+    # possibly-wrong LR.
     #
     # margin and num_steps are kept as separate, later stages, weaker
     # coupling to LR/freeze depth, sequential narrowing is a reasonable
     # tradeoff there to keep the total search tractable.
-    #
-    # learning_rate includes 1e-6 (not just 1e-3/1e-4/1e-5): an earlier
-    # sweep at freeze_until_block=8 showed 1e-6 performing worse than
-    # 1e-5, but freeze_until_block now ranges much wider here (2-12),
-    # and more trainable parameters at the aggressive end (e.g. 2) could
-    # plausibly need an even smaller LR than anything tested before to
-    # stay stable. Not adding anything above 1e-3, every result so far
-    # points toward higher being more destructive, not less.
     best_config, summary = run_staged_search(
         stages=[
             {

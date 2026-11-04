@@ -9,7 +9,13 @@ own __main__ block is for.
 import pytest
 
 from stylematch.config import DEEPFASHION_DIR
-from stylematch.similarity.sweep import TrainingConfig, build_grid, run_sweep, run_staged_search
+from stylematch.similarity.sweep import (
+    TrainingConfig,
+    build_grid,
+    run_sweep,
+    run_staged_search,
+    run_staged_search_lite,
+)
 
 
 def test_build_grid_produces_full_cartesian_product():
@@ -113,3 +119,19 @@ def test_run_staged_search_carries_winner_forward(tmp_path):
     assert (tmp_path / "staged_search_stage_1.csv").exists()
     assert (tmp_path / "staged_search_stage_2.csv").exists()
     assert (tmp_path / "staged_search_summary.csv").exists()
+
+
+@requires_deepfashion
+def test_run_staged_search_lite_uses_small_defaults_and_runs(tmp_path):
+    """Confirms the convenience wrapper actually produces a fast, small
+    run end to end using its own built-in defaults (no stages or
+    base_config passed in), and writes to the given results_dir rather
+    than the real search's default location.
+    """
+    best_config, summary = run_staged_search_lite(results_dir=tmp_path)
+
+    assert len(summary) == 2  # default: 2 stages
+    assert best_config.num_steps == 5  # default base_config's fast setting
+    assert best_config.num_categories == 10
+    assert (tmp_path / "staged_search_stage_1.csv").exists()
+    assert (tmp_path / "staged_search_stage_2.csv").exists()

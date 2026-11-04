@@ -78,13 +78,13 @@ class DeepFashionCAPDataset(Dataset):
                 positives and different-category negatives to mine
                 triplets from. Mock stand-in for the real pipeline;
                 None (default) preserves the original first-N behavior.
-            num_categories: required when min_images_per_category is
+            num_categories: only used when min_images_per_category is
                 set; how many distinct qualifying categories to collect.
+                None means every qualifying category in the split (e.g.
+                for a real Great Lakes run, not just a local dev subset).
         """
         if split not in ("train", "val", "test"):
             raise ValueError(f"split must be 'train', 'val', or 'test', got {split!r}")
-        if min_images_per_category is not None and num_categories is None:
-            raise ValueError("num_categories is required when min_images_per_category is set")
         self.root = Path(root)
         self.transform = transform
         if min_images_per_category is not None:
@@ -140,15 +140,17 @@ class DeepFashionCAPDataset(Dataset):
         return samples
 
     def _load_stratified_samples(
-        self, split: str, min_images_per_category: int, num_categories: int
+        self, split: str, min_images_per_category: int, num_categories: int | None
     ) -> list[tuple[str, int, list[int]]]:
         """Collects `num_categories` distinct categories that each have
         at least `min_images_per_category` images, scanning further into
         the file than `_load_samples` would, since categories arrive in
-        contiguous blocks, not interleaved. Duplicates some parsing logic
-        from `_load_samples` rather than sharing it, this is mock/
-        temporary code meant to be replaced wholesale by the real
-        pipeline, not worth a shared abstraction for.
+        contiguous blocks, not interleaved. num_categories=None means
+        collect every qualifying category, no early stop, scans the
+        whole file. Duplicates some parsing logic from `_load_samples`
+        rather than sharing it, this is mock/temporary code meant to be
+        replaced wholesale by the real pipeline, not worth a shared
+        abstraction for.
         """
         by_category: dict[int, list[tuple[str, int, list[int]]]] = {}
         category_path = self.root / "list_category_img.txt"
@@ -184,16 +186,19 @@ class DeepFashionCAPDataset(Dataset):
                 attribute_label = [int(v) for v in attr_parts[1:]]
                 bucket.append((image_name, category_label, attribute_label))
 
-                qualifying = sum(
-                    1 for b in by_category.values() if len(b) >= min_images_per_category
-                )
-                if qualifying >= num_categories:
-                    break
+                if num_categories is not None:
+                    qualifying = sum(
+                        1 for b in by_category.values() if len(b) >= min_images_per_category
+                    )
+                    if qualifying >= num_categories:
+                        break
+                # num_categories is None: no early stop, scan the whole
+                # file and keep every qualifying category.
 
         qualifying_categories = [
             cat for cat, bucket in by_category.items() if len(bucket) >= min_images_per_category
         ][:num_categories]
-        if len(qualifying_categories) < num_categories:
+        if num_categories is not None and len(qualifying_categories) < num_categories:
             raise ValueError(
                 f"only found {len(qualifying_categories)} categories with >= "
                 f"{min_images_per_category} images in split {split!r}, "

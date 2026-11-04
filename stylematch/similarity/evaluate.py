@@ -1,8 +1,6 @@
 """Retrieval-accuracy evaluation for the similarity engine: for each
 image, checks whether its nearest *other* image by embedding similarity
-shares its category label. Validation split only, the test split stays
-untouched until the final, single evaluation pass (Team Weekly Plan
-Week 5; see also Lones et al. on touching a test set exactly once).
+shares its category label.
 """
 
 import torch
@@ -47,9 +45,7 @@ def top1_retrieval_accuracy(embeddings: torch.Tensor, labels: torch.Tensor) -> f
 
 def random_baseline_accuracy(labels: torch.Tensor) -> float:
     """What top1_retrieval_accuracy would be from guessing a random
-    *other* image rather than actually using the embeddings, per Lones
-    et al.'s point that a target number is only meaningful next to a
-    simple baseline, not in isolation.
+    *other* image rather than actually using the embeddings.
     """
     counts = torch.bincount(labels)
     # For each category, chance of randomly picking another member of
