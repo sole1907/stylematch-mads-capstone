@@ -1,7 +1,8 @@
 """Training loop for the similarity engine.
 
 Uses the real SimilarityModel (model.py), real preprocessing, and the
-real pytorch-metric-learning triplet loss now. Batch construction uses
+real pytorch-metric-learning triplet loss, with graded attribute-aware
+mining (attribute_mining.py). Batch construction uses
 CategoryBalancedBatchSampler (sampler.py), a mock stand-in for the real
 DeepFashion pipeline, needed so every batch actually has same-category
 positives and different-category negatives for triplet mining to find.
@@ -15,7 +16,7 @@ import torch
 from torch.utils.data import DataLoader
 
 from stylematch.config import MODELS_DIR
-from stylematch.similarity.attribute_mining import DEFAULT_MIN_SHARED_ATTRIBUTES, mine_attribute_aware_triplets
+from stylematch.similarity.attribute_mining import DEFAULT_HIGH_OVERLAP_THRESHOLD, mine_graded_attribute_triplets
 from stylematch.similarity.dataset import DeepFashionCAPDataset
 from stylematch.similarity.model import SimilarityModel
 from stylematch.similarity.sampler import CategoryBalancedBatchSampler
@@ -30,7 +31,7 @@ def run_training_loop(
     freeze_until_block: int = 8,
     embedding_dim: int = 256,
     margin: float = 0.2,
-    min_shared_attributes: int = DEFAULT_MIN_SHARED_ATTRIBUTES,
+    high_overlap_threshold: int = DEFAULT_HIGH_OVERLAP_THRESHOLD,
     checkpoint_path: Path | None = None,
 ) -> tuple[SimilarityModel, list[float]]:
     """Runs a handful of steps end-to-end against a real, category-
@@ -87,14 +88,15 @@ def run_training_loop(
     trainable_params = [p for p in model.parameters() if p.requires_grad]
     optimizer = torch.optim.Adam(trainable_params, lr=learning_rate)
 
-    # Real triplet loss. Mining on category + attribute overlap together
-    # now, not category alone (see attribute_mining.py and
-    # dev-notes/architecture-decision.md's pair/triplet construction
-    # note, committed to mentor feedback): a custom miner is used
-    # instead of pytorch-metric-learning's built-in label-based
-    # TripletMarginMiner, since "same category AND shares >= N
-    # attributes" isn't a transitive relation and can't be expressed as
-    # a single scalar label the way category alone can.
+    # Real triplet loss. Mining uses graded, 4-tier attribute-aware
+    # mining now (see attribute_mining.py and
+    # dev-notes/architecture-decision.md's "Graded similarity tiers"
+    # note), not a flat positive/negative split: same-category pairs
+    # with more shared attributes are pushed closer than same-category
+    # pairs with fewer, which are in turn pushed closer than
+    # different-category pairs. A custom miner is used instead of
+    # pytorch-metric-learning's built-in label-based TripletMarginMiner,
+    # since this ordering isn't expressible as a single scalar label.
     loss_fn = losses.TripletMarginLoss(margin=margin)
 
     losses_recorded = []
@@ -111,8 +113,8 @@ def run_training_loop(
 
         embeddings = model(images)
 
-        indices_tuple = mine_attribute_aware_triplets(
-            category_labels, attribute_labels, min_shared_attributes=min_shared_attributes
+        indices_tuple = mine_graded_attribute_triplets(
+            category_labels, attribute_labels, high_overlap_threshold=high_overlap_threshold
         )
         num_triplets = indices_tuple[0].numel()
         loss = loss_fn(embeddings, labels=None, indices_tuple=indices_tuple)
