@@ -1,19 +1,8 @@
 """Attribute-aware triplet mining: a positive pair requires BOTH
-category match and attribute overlap, not category alone. See
-dev-notes/architecture-decision.md's pair/triplet construction note
-(committed to mentor feedback, Nov 2026): CAP has no same-item identity
-pairing, so category + attribute overlap is the best available proxy
-for "these two items are genuinely similar."
+category match and attribute overlap, not category alone.
 
-Why this can't be done with pytorch-metric-learning's built-in
-label-based miner (TripletMarginMiner): that miner treats "same label"
-as an equivalence relation (same category <=> positive, transitively).
-"Same category AND shares >= N attributes" is NOT transitive, item A
-and item B can share one attribute, item B and item C can share a
-*different* attribute, without A and C sharing anything, so it can't be
-collapsed into a single scalar label the way category alone can. This
-module builds the (anchor, positive, negative) index triples directly
-instead, in the exact format pytorch-metric-learning's loss functions
+This module builds the (anchor, positive, negative) index triples
+directly, in the exact format pytorch-metric-learning's loss functions
 accept via their own `indices_tuple` argument (confirmed: TripletMarginLoss
 works correctly with labels=None when indices_tuple is supplied directly,
 including the empty-triplets case, which returns a loss of 0.0, matching
@@ -22,8 +11,7 @@ the built-in miner's existing behavior for batches with no valid triplets).
 Two miners are provided: the original binary version
 (mine_attribute_aware_triplets, same category + any overlap vs.
 different category), and a graded, 4-tier version
-(mine_graded_attribute_triplets, see dev-notes/architecture-decision.md's
-"Graded similarity tiers" note) that's now the one wired into train.py.
+(mine_graded_attribute_triplets) that's now the one wired into train.py.
 Both are kept, not just the newer one, useful to compare directly.
 """
 
@@ -136,9 +124,7 @@ def mine_graded_attribute_triplets(
     high_overlap_threshold: int = DEFAULT_HIGH_OVERLAP_THRESHOLD,
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """Mines triplets encoding a 4-tier ordering of closeness, not a flat
-    positive/negative split (see dev-notes/architecture-decision.md's
-    "Graded similarity tiers" note). Per anchor, ordered closest to
-    farthest:
+    positive/negative split. Per anchor, ordered closest to farthest:
 
         A: same category, >= high_overlap_threshold shared attributes
         B: same category, exactly 1 shared attribute
@@ -154,15 +140,7 @@ def mine_graded_attribute_triplets(
     mine_attribute_aware_triplets, just extended to the tiered case.
 
     Triplets are mined between EVERY pair of tiers (A-B, A-C, A-D, B-C,
-    B-D, C-D), not just adjacent ones. Adjacent-only was the original
-    plan, but a hand-verified case showed it silently loses the
-    ordering between two tiers whenever the tier between them is empty
-    for a given anchor, e.g. tier A and tier C both populated but tier
-    B empty, which is common given how sparse real attribute overlap is
-    (confirmed: ~45% of same-category pairs share 0 attributes, ~34%
-    share exactly 1, so tier B is often thin or empty at typical batch
-    sizes). Full pairwise comparison is still cheap at this batch scale
-    (candidate pools per anchor are small) and avoids that gap entirely.
+    B-D, C-D), not just adjacent ones.
 
     Args:
         category_labels: (batch,) int tensor.

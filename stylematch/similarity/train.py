@@ -89,12 +89,10 @@ def run_training_loop(
     optimizer = torch.optim.Adam(trainable_params, lr=learning_rate)
 
     # Real triplet loss. Mining uses graded, 4-tier attribute-aware
-    # mining now (see attribute_mining.py and
-    # dev-notes/architecture-decision.md's "Graded similarity tiers"
-    # note), not a flat positive/negative split: same-category pairs
-    # with more shared attributes are pushed closer than same-category
-    # pairs with fewer, which are in turn pushed closer than
-    # different-category pairs. A custom miner is used instead of
+    # mining now, not a flat positive/negative split: same-category
+    # pairs with more shared attributes are pushed closer than
+    # same-category pairs with fewer, which are in turn pushed closer
+    # than different-category pairs. A custom miner is used instead of
     # pytorch-metric-learning's built-in label-based TripletMarginMiner,
     # since this ordering isn't expressible as a single scalar label.
     loss_fn = losses.TripletMarginLoss(margin=margin)
