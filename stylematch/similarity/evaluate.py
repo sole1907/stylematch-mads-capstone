@@ -1,11 +1,16 @@
 """Retrieval-accuracy evaluation for the similarity engine: for each
 image, checks whether its nearest *other* image by embedding similarity
-shares its category label.
+is actually a match, under two different definitions of "correct":
+category label alone, or category + attribute overlap together (see
+attribute_mining.py and dev-notes/architecture-decision.md). Both are
+kept, the category-only version remains a useful, simpler comparison
+point, not dead code.
 """
 
 import torch
 from torch.utils.data import DataLoader
 
+from stylematch.similarity.attribute_mining import DEFAULT_MIN_SHARED_ATTRIBUTES
 from stylematch.similarity.dataset import DeepFashionCAPDataset
 from stylematch.similarity.model import SimilarityModel
 
@@ -13,21 +18,27 @@ from stylematch.similarity.model import SimilarityModel
 @torch.no_grad()
 def compute_embeddings(
     model: SimilarityModel, dataset: DeepFashionCAPDataset, batch_size: int = 32
-) -> tuple[torch.Tensor, torch.Tensor]:
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """Runs every image in `dataset` through `model` once. Returns
-    (embeddings, category_labels), each stacked across the whole dataset,
-    not just one batch.
+    (embeddings, category_labels, attribute_labels), each stacked
+    across the whole dataset, not just one batch.
     """
     model.eval()  # turns off patch_dropout; we want deterministic embeddings here
     loader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
 
     all_embeddings = []
-    all_labels = []
-    for images, category_labels, _attribute_labels in loader:
+    all_category_labels = []
+    all_attribute_labels = []
+    for images, category_labels, attribute_labels in loader:
         all_embeddings.append(model(images))
-        all_labels.append(category_labels)
+        all_category_labels.append(category_labels)
+        all_attribute_labels.append(attribute_labels)
 
-    return torch.cat(all_embeddings), torch.cat(all_labels)
+    return (
+        torch.cat(all_embeddings),
+        torch.cat(all_category_labels),
+        torch.cat(all_attribute_labels),
+    )
 
 
 def top1_retrieval_accuracy(embeddings: torch.Tensor, labels: torch.Tensor) -> float:
@@ -40,6 +51,34 @@ def top1_retrieval_accuracy(embeddings: torch.Tensor, labels: torch.Tensor) -> f
     similarity.fill_diagonal_(-float("inf"))  # never match an embedding to itself
     nearest_neighbor = similarity.argmax(dim=1)
     correct = labels[nearest_neighbor] == labels
+    return correct.float().mean().item()
+
+
+def attribute_aware_top1_retrieval_accuracy(
+    embeddings: torch.Tensor,
+    category_labels: torch.Tensor,
+    attribute_labels: torch.Tensor,
+    min_shared_attributes: int = DEFAULT_MIN_SHARED_ATTRIBUTES,
+) -> float:
+    """Same mechanism as top1_retrieval_accuracy, but "correct" now
+    requires category match AND attribute overlap (or the query itself
+    having zero active attributes, the same fallback rule used in
+    training, see attribute_mining.py), not category alone.
+    """
+    similarity = embeddings @ embeddings.T
+    similarity.fill_diagonal_(-float("inf"))
+    nearest_neighbor = similarity.argmax(dim=1)
+
+    active = attribute_labels == 1
+    shared_attribute_counts = active.float() @ active.float().T  # (N, N)
+    query_has_no_attributes = active.sum(dim=1) == 0  # (N,)
+
+    matched_category = category_labels[nearest_neighbor] == category_labels
+    n = embeddings.size(0)
+    overlap_with_match = shared_attribute_counts[torch.arange(n), nearest_neighbor]
+    enough_overlap = overlap_with_match >= min_shared_attributes
+
+    correct = matched_category & (enough_overlap | query_has_no_attributes)
     return correct.float().mean().item()
 
 
@@ -61,11 +100,13 @@ def evaluate_retrieval_accuracy(
     min_images_per_category: int = 4,
     num_categories: int = 20,
     batch_size: int = 32,
+    min_shared_attributes: int = DEFAULT_MIN_SHARED_ATTRIBUTES,
 ) -> dict[str, float]:
     """Loads a stratified subset of `split` (same approach as training,
-    see dataset.py), embeds it, and returns both the model's retrieval
-    accuracy and the random baseline for the same data, so the number
-    means something on its own.
+    see dataset.py), embeds it, and returns retrieval accuracy under
+    both correctness definitions (category-only and attribute-aware),
+    plus the random baseline, so the numbers mean something on their
+    own and can be compared to each other directly.
     """
     dataset = DeepFashionCAPDataset(
         split=split,
@@ -73,10 +114,15 @@ def evaluate_retrieval_accuracy(
         min_images_per_category=min_images_per_category,
         num_categories=num_categories,
     )
-    embeddings, labels = compute_embeddings(model, dataset, batch_size=batch_size)
+    embeddings, category_labels, attribute_labels = compute_embeddings(
+        model, dataset, batch_size=batch_size
+    )
     return {
-        "accuracy": top1_retrieval_accuracy(embeddings, labels),
-        "random_baseline": random_baseline_accuracy(labels),
+        "accuracy": top1_retrieval_accuracy(embeddings, category_labels),
+        "attribute_aware_accuracy": attribute_aware_top1_retrieval_accuracy(
+            embeddings, category_labels, attribute_labels, min_shared_attributes=min_shared_attributes
+        ),
+        "random_baseline": random_baseline_accuracy(category_labels),
         "num_images": len(dataset),
         "num_categories": num_categories,
     }
