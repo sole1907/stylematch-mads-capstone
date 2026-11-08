@@ -23,11 +23,7 @@ def compute_color_histogram(image: torch.Tensor, bins: int = DEFAULT_BINS_PER_CH
     """Computes a per-channel color histogram feature for one image.
 
     Args:
-        image: float tensor, shape (3, H, W), values in [0, 1]. Must be
-            real, unnormalized color values, e.g. dataset.py's own
-            placeholder transform (transform=None), NOT a model-specific
-            preprocessing like Marqo-FashionCLIP's preprocess_val, which
-            shifts values away from anything interpretable as color.
+        image: float tensor, shape (3, H, W), values in [0, 1].
         bins: number of histogram bins per channel.
 
     Returns:
