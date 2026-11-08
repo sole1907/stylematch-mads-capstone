@@ -248,22 +248,38 @@ def test_real_data_every_returned_triplet_satisfies_its_own_definition():
 def test_real_data_is_subset_of_category_only_mining():
     """Attribute-aware mining only tightens the positive definition, it
     never loosens it, so the resulting triplet count should never
-    exceed what plain category-only mining (TripletMarginMiner) would
-    find on the same batch.
-    """
-    from pytorch_metric_learning import miners
+    exceed the full combinatorial count of category-only triplets
+    (every same-category-other item paired with every different-
+    category item, for every anchor).
 
+    Deliberately NOT compared against pytorch-metric-learning's
+    TripletMarginMiner(type_of_triplets="all"): that doesn't mean "every
+    combinatorially possible triplet", it means "every triplet currently
+    violating the margin", which depends on whatever embeddings are
+    passed in. The original version of this test fed it unseeded random
+    embeddings and compared the (embedding-dependent, run-to-run
+    variable) result against this function's (deterministic, label-only)
+    count, a real, pre-existing flakiness that surfaced as an actual
+    failure rather than just a theoretical risk. The combinatorial count
+    computed here depends only on the labels, never on any embeddings,
+    so this comparison is deterministic.
+    """
     dataset = DeepFashionCAPDataset(split="train", min_images_per_category=4, num_categories=10)
     samples = [dataset.samples[i] for i in range(32)]
     category_labels = torch.tensor([s[1] for s in samples])
     attribute_labels = torch.tensor([s[2] for s in samples])
-    dummy_embeddings = torch.nn.functional.normalize(torch.randn(32, 16), dim=-1)
 
     attribute_aware = mine_attribute_aware_triplets(category_labels, attribute_labels)
-    category_only_miner = miners.TripletMarginMiner(margin=0.2, type_of_triplets="all")
-    category_only = category_only_miner(dummy_embeddings, category_labels)
 
-    assert attribute_aware[0].numel() <= category_only[0].numel()
+    max_possible_category_only_triplets = 0
+    for anchor in range(len(samples)):
+        same_cat_other = (
+            (category_labels == category_labels[anchor]) & (torch.arange(len(samples)) != anchor)
+        ).sum().item()
+        diff_cat = (category_labels != category_labels[anchor]).sum().item()
+        max_possible_category_only_triplets += same_cat_other * diff_cat
+
+    assert attribute_aware[0].numel() <= max_possible_category_only_triplets
 
 
 def _tier(anchor_idx, candidate_idx, category_labels, active, high_overlap_threshold=2):
