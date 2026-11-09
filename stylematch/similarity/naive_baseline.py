@@ -14,7 +14,12 @@ per-image feature tensor usable for nearest-neighbor comparison.
 import torch
 
 from stylematch.similarity.dataset import DeepFashionCAPDataset
-from stylematch.similarity.evaluate import random_baseline_accuracy, top1_retrieval_accuracy
+from stylematch.similarity.evaluate import (
+    evaluate_retrieval_accuracy,
+    random_baseline_accuracy,
+    top1_retrieval_accuracy,
+)
+from stylematch.similarity.model import SimilarityModel
 
 DEFAULT_BINS_PER_CHANNEL = 32
 
@@ -90,5 +95,54 @@ def evaluate_naive_color_baseline(
         "accuracy": top1_retrieval_accuracy(features, category_labels),
         "random_baseline": random_baseline_accuracy(category_labels),
         "num_images": len(dataset),
+        "num_categories": num_categories,
+    }
+
+
+def compare_similarity_vs_naive_baseline(
+    model: SimilarityModel,
+    split: str = "val",
+    min_images_per_category: int = 4,
+    num_categories: int = 20,
+    batch_size: int = 32,
+    bins: int = DEFAULT_BINS_PER_CHANNEL,
+) -> dict[str, float]:
+    """Runs the trained SimilarityModel and the naive color-histogram
+    baseline on the *same* validation subset, so the two accuracy
+    numbers are directly comparable, not just two separate runs that
+    happen to use similar-sounding settings.
+
+    Same-subset guarantee: DeepFashionCAPDataset's stratified loading
+    (split/min_images_per_category/num_categories) scans the annotation
+    file in a fixed order and takes the first qualifying categories, no
+    shuffling involved (see dataset.py's _load_stratified_samples), so
+    calling it twice with identical args always selects the identical
+    set of images, regardless of which transform each call uses.
+
+    Returns:
+        A dict with both models' accuracy, the shared random-chance
+        baseline for this subset, and the subset size, e.g.:
+        {"similarity_model_accuracy": ..., "naive_baseline_accuracy":
+        ..., "random_baseline": ..., "num_images": ..., "num_categories": ...}
+    """
+    similarity_results = evaluate_retrieval_accuracy(
+        model,
+        split=split,
+        min_images_per_category=min_images_per_category,
+        num_categories=num_categories,
+        batch_size=batch_size,
+    )
+    naive_results = evaluate_naive_color_baseline(
+        split=split,
+        min_images_per_category=min_images_per_category,
+        num_categories=num_categories,
+        bins=bins,
+    )
+    return {
+        "similarity_model_accuracy": similarity_results["accuracy"],
+        "similarity_model_attribute_aware_accuracy": similarity_results["attribute_aware_accuracy"],
+        "naive_baseline_accuracy": naive_results["accuracy"],
+        "random_baseline": similarity_results["random_baseline"],
+        "num_images": similarity_results["num_images"],
         "num_categories": num_categories,
     }

@@ -9,11 +9,13 @@ import torch
 
 from stylematch.config import DEEPFASHION_DIR
 from stylematch.similarity.naive_baseline import (
+    compare_similarity_vs_naive_baseline,
     compute_color_histogram,
     compute_color_histogram_batch,
     evaluate_naive_color_baseline,
 )
 from stylematch.similarity.dataset import DeepFashionCAPDataset
+from stylematch.similarity.model import SimilarityModel
 
 
 def test_identical_images_have_similarity_one():
@@ -80,3 +82,28 @@ def test_evaluate_naive_color_baseline_runs_end_to_end():
     assert 0.0 <= result["random_baseline"] <= 1.0
     assert result["num_categories"] == 10
     assert result["num_images"] > 0
+
+
+@requires_deepfashion
+def test_compare_similarity_vs_naive_baseline_runs_on_matching_subset():
+    """Doesn't assert the trained model beats the naive baseline (a
+    freshly-constructed, untrained-projection-head model has no reason
+    to), only that both sides ran on the exact same subset and every
+    number is in a sane range. The real before/after comparison is a
+    separate, documented run against an actually-trained checkpoint.
+    """
+    model = SimilarityModel()
+    result = compare_similarity_vs_naive_baseline(model, split="val", num_categories=10)
+
+    assert 0.0 <= result["similarity_model_accuracy"] <= 1.0
+    assert 0.0 <= result["similarity_model_attribute_aware_accuracy"] <= 1.0
+    assert 0.0 <= result["naive_baseline_accuracy"] <= 1.0
+    assert 0.0 <= result["random_baseline"] <= 1.0
+    assert result["num_categories"] == 10
+    assert result["num_images"] > 0
+
+    # same subset for both sides: cross-check against each function's
+    # own standalone result on identical arguments.
+    naive_only = evaluate_naive_color_baseline(split="val", num_categories=10)
+    assert result["naive_baseline_accuracy"] == naive_only["accuracy"]
+    assert result["num_images"] == naive_only["num_images"]
