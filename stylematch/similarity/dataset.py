@@ -3,15 +3,6 @@
 
 See `scripts/download_deepfashion.py` to fetch the underlying files, and
 `references/deepfashion_schema.md` for what's inside them.
-
-This is the real data pipeline: real file parsing, real images, and
-(since the max_images_per_category fix) genuinely scales from a small
-local dev subset up to the full dataset, no synthetic data anywhere.
-Built in-house rather than received from Yuzuru's separate DeepFashion
-pipeline work; if that lands later it may still replace this, but
-nothing here is being left deliberately rough in anticipation of that,
-this is written to be run for real, including an unattended full-scale
-pass on Great Lakes.
 """
 
 from pathlib import Path
