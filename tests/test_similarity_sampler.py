@@ -67,6 +67,32 @@ def test_no_duplicate_categories_in_self_categories():
     assert len(sampler.categories) == len(set(sampler.categories))
 
 
+def test_every_category_covered_once_when_not_evenly_divisible():
+    """21 categories with categories_per_batch=4 doesn't divide evenly
+    (5 full batches of 4 + 1 leftover category). Every one of the 21
+    should still appear exactly once across the epoch, not 20 with 1
+    silently dropped (the bug an earlier version had), and not 24 with
+    3 duplicated to pad out a fifth full-size batch.
+    """
+    dataset = _make_dataset(num_categories=21)
+    sampler = CategoryBalancedBatchSampler(
+        dataset, categories_per_batch=CATEGORIES_PER_BATCH, images_per_category=IMAGES_PER_CATEGORY
+    )
+
+    categories_seen = []
+    batch_sizes = []
+    for batch_indices in sampler:
+        batch_sizes.append(len(batch_indices))
+        labels_in_batch = {dataset.samples[i][1] for i in batch_indices}
+        categories_seen.extend(labels_in_batch)
+
+    assert len(categories_seen) == 21  # every category exactly once, no drops, no duplicates
+    assert len(set(categories_seen)) == 21
+    assert batch_sizes[:-1] == [CATEGORIES_PER_BATCH * IMAGES_PER_CATEGORY] * 5  # 5 full batches
+    assert batch_sizes[-1] == 1 * IMAGES_PER_CATEGORY  # final batch: the 1 leftover category only
+    assert len(sampler) == 6  # ceil(21 / 4), not floor
+
+
 def test_raises_when_too_few_qualifying_categories():
     dataset = _make_dataset(num_categories=3)  # fewer categories than categories_per_batch needs
     with pytest.raises(ValueError):

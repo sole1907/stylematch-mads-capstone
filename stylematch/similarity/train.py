@@ -3,9 +3,9 @@
 Uses the real SimilarityModel (model.py), real preprocessing, and the
 real pytorch-metric-learning triplet loss, with graded attribute-aware
 mining (attribute_mining.py). Batch construction uses
-CategoryBalancedBatchSampler (sampler.py), a mock stand-in for the real
-DeepFashion pipeline, needed so every batch actually has same-category
-positives and different-category negatives for triplet mining to find.
+CategoryBalancedBatchSampler (sampler.py), needed so every batch
+actually has same-category positives and different-category negatives
+for triplet mining to find.
 """
 
 from pathlib import Path
