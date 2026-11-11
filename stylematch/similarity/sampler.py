@@ -10,7 +10,6 @@ has both same-category positives and different-category negatives to
 mine from.
 """
 
-import math
 import random
 
 from torch.utils.data import Sampler
@@ -56,24 +55,27 @@ class CategoryBalancedBatchSampler(Sampler[list[int]]):
 
     def __iter__(self):
         """Every category appears in exactly one batch each epoch, none
-        silently dropped: when len(self.categories) isn't evenly
-        divisible by categories_per_batch, the final batch is just
-        smaller (the real leftover categories, not padded with
-        duplicates, not discarded) rather than rounding down and
-        skipping them, a real but small coverage gap an earlier version
-        had (documented at the time: ~4% of categories dropped per
-        epoch at the full 46-category scale, reshuffled each epoch so
-        never *permanently* excluded, but no single epoch saw
-        everything).
+        silently dropped. When len(self.categories) isn't evenly
+        divisible by categories_per_batch, the leftover categories are
+        merged into the *last* batch instead of forming their own
+        undersized trailing batch: a batch built from too few
+        categories (as few as 1) has no cross-category negatives to
+        mine triplets from at all, exactly the failure mode this
+        sampler exists to prevent elsewhere, so the last batch grows
+        instead of shrinking.
         """
         categories = self.categories.copy()
         random.shuffle(categories)
         step = self.categories_per_batch
-        for i in range(0, len(categories), step):
+        num_batches = len(categories) // step
+        for batch_num in range(num_batches):
+            start = batch_num * step
+            is_last_batch = batch_num == num_batches - 1
+            end = len(categories) if is_last_batch else start + step
             batch: list[int] = []
-            for category in categories[i : i + step]:
+            for category in categories[start:end]:
                 batch.extend(random.sample(self.by_category[category], self.images_per_category))
             yield batch
 
     def __len__(self) -> int:
-        return math.ceil(len(self.categories) / self.categories_per_batch)
+        return len(self.categories) // self.categories_per_batch

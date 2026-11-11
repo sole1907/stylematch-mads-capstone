@@ -69,10 +69,20 @@ def test_no_duplicate_categories_in_self_categories():
 
 def test_every_category_covered_once_when_not_evenly_divisible():
     """21 categories with categories_per_batch=4 doesn't divide evenly
-    (5 full batches of 4 + 1 leftover category). Every one of the 21
+    (5 full batches of 4, 1 leftover category). Every one of the 21
     should still appear exactly once across the epoch, not 20 with 1
-    silently dropped (the bug an earlier version had), and not 24 with
-    3 duplicated to pad out a fifth full-size batch.
+    silently dropped (an earlier version's bug), and not 24 with 3
+    duplicated to pad out a sixth batch.
+
+    Critically, the leftover category must be *merged into* the last
+    batch (making it bigger, 5 categories instead of 4), not given its
+    own undersized trailing batch: a batch built from too few
+    categories has no cross-category negatives to mine triplets from
+    at all (a 1-category batch has zero, regardless of how many images
+    are in it), which is exactly the failure mode this sampler exists
+    to prevent. An earlier version of this fix got that backwards,
+    caught by hand-checking the actual batch *composition*, not just
+    the aggregate image count.
     """
     dataset = _make_dataset(num_categories=21)
     sampler = CategoryBalancedBatchSampler(
@@ -80,17 +90,20 @@ def test_every_category_covered_once_when_not_evenly_divisible():
     )
 
     categories_seen = []
-    batch_sizes = []
+    categories_per_batch_seen = []
     for batch_indices in sampler:
-        batch_sizes.append(len(batch_indices))
         labels_in_batch = {dataset.samples[i][1] for i in batch_indices}
+        categories_per_batch_seen.append(len(labels_in_batch))
         categories_seen.extend(labels_in_batch)
 
     assert len(categories_seen) == 21  # every category exactly once, no drops, no duplicates
     assert len(set(categories_seen)) == 21
-    assert batch_sizes[:-1] == [CATEGORIES_PER_BATCH * IMAGES_PER_CATEGORY] * 5  # 5 full batches
-    assert batch_sizes[-1] == 1 * IMAGES_PER_CATEGORY  # final batch: the 1 leftover category only
-    assert len(sampler) == 6  # ceil(21 / 4), not floor
+    assert categories_per_batch_seen == [4, 4, 4, 4, 5]  # 4 normal batches, last one absorbs the leftover
+    assert all(count >= 2 for count in categories_per_batch_seen), (
+        "every batch must have at least 2 distinct categories to have any "
+        "cross-category negative to mine a triplet against"
+    )
+    assert len(sampler) == 5  # floor(21 / 4): no extra batch, the last one just grew
 
 
 def test_raises_when_too_few_qualifying_categories():

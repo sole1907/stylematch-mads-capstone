@@ -24,9 +24,7 @@ def compute_embeddings(
     across the whole dataset, not just one batch.
 
     Args:
-        num_workers: DataLoader subprocesses for image loading/decoding,
-            see run_training_loop's docstring (train.py) for why this
-            matters at full-dataset scale; same reasoning applies here.
+        num_workers: DataLoader subprocesses for image loading/decoding.
     """
     model.eval()  # turns off patch_dropout; we want deterministic embeddings here
     loader = DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers)
