@@ -85,32 +85,11 @@ class DeepFashionCAPDataset(Dataset):
                 first-N behavior.
             num_categories: only used when min_images_per_category is
                 set; how many distinct qualifying categories to collect.
-                None means every qualifying category in the split (e.g.
-                for a real Great Lakes run, not just a local dev subset).
+                None means every qualifying category in the split.
             max_images_per_category: only used when min_images_per_category
                 is set; caps how many images get collected per qualifying
                 category. None (default) means no cap, collect every real
-                image that category has. Previously there was no way to
-                express this: min_images_per_category alone doubled as
-                both "minimum to qualify" and "maximum ever collected",
-                so every category was silently capped at exactly that
-                minimum regardless of how many more real images existed
-                (confirmed empirically: num_categories=None with
-                min_images_per_category=4 returned exactly 184 samples,
-                46 categories x 4, not the real full dataset). Decoupled
-                so a genuine full-scale load is possible: pass None here
-                with num_categories=None for "everything, every
-                category." Safe to leave uncapped for training
-                specifically (see sampler.py's CategoryBalancedBatchSampler,
-                which already draws a random subset of images_per_category
-                from whatever pool exists each batch; a bigger uncapped
-                pool only adds epoch-to-epoch variety, the per-step image
-                count it actually loads doesn't change). Evaluation
-                functions that iterate the whole dataset directly instead
-                of through that sampler (evaluate.py, naive_baseline.py)
-                deliberately pin this to match min_images_per_category at
-                their call sites, preserving their existing bounded
-                behavior rather than inheriting unbounded-by-default.
+                image that category has.
         """
         if split not in ("train", "val", "test"):
             raise ValueError(f"split must be 'train', 'val', or 'test', got {split!r}")
@@ -126,10 +105,7 @@ class DeepFashionCAPDataset(Dataset):
     def _iter_annotation_rows(self, split: str):
         """Reads the three per-image annotation files in lockstep,
         yielding (image_name, category_label, attribute_label) for every
-        image in `split`. Shared by _load_samples and
-        _load_stratified_samples so the parsing/sync-checking logic
-        (confirmed: 289,224 lines each, 289,222 images plus 2 header
-        lines) exists in exactly one place, not duplicated between them.
+        image in `split`.
         """
         category_path = self.root / "list_category_img.txt"
         attr_path = self.root / "list_attr_img.txt"
@@ -188,18 +164,6 @@ class DeepFashionCAPDataset(Dataset):
         `_load_samples` would, since categories arrive in contiguous
         blocks, not interleaved. num_categories=None means collect every
         qualifying category.
-
-        Early-stops only at a category-block *boundary* (the file moves
-        on to a genuinely different category than the last line kept),
-        never mid-block. Categories are contiguous, so by the time a
-        boundary is crossed, every category counted toward the stop
-        decision is already guaranteed fully scanned, this avoids
-        stopping mid-block and silently truncating whichever category
-        happened to be in progress (a real bug an earlier version had
-        when max_images_per_category was uncapped: it could stop the
-        instant a category's count first crossed min_images_per_category,
-        cutting off the rest of that category's real images still later
-        in its own block).
         """
         by_category: dict[int, list[tuple[str, int, list[int]]]] = {}
         previous_category_label = None
@@ -262,11 +226,7 @@ class DeepFashionCAPDataset(Dataset):
                 in {-1, 1} per `list_attr_img.txt`'s own encoding
                 (1 = has the attribute, -1 = does not).
 
-        A real, hours-long unattended run (e.g. a Great Lakes sweep)
-        can plausibly hit one truncated download or corrupted file
-        somewhere in a real full-scale dataset; previously this just
-        crashed the whole run on whatever exception PIL happened to
-        raise. Now falls back to the next index (wrapping around),
+        Falls back to the next index (wrapping around),
         logging a warning each time, bounded by
         MAX_CONSECUTIVE_LOAD_RETRIES consecutive failures before giving
         up and raising clearly, since that many in a row means

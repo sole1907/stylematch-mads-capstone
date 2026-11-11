@@ -6,7 +6,7 @@ the real, full-scale search (sweep.py's __main__, sized for Great
 Lakes) is for.
 
 Run directly:
-    python scripts/run_sweep_lite.py
+    python scripts/run_similarity_sweep_lite.py
 """
 
 import typer
