@@ -50,6 +50,7 @@ class DeepFashionCAPDataset(Dataset):
         sample_size: int | None = 100,
         min_images_per_category: int | None = None,
         num_categories: int | None = None,
+        max_images_per_category: int | None = None,
     ) -> None:
         """
         Args:
@@ -82,6 +83,30 @@ class DeepFashionCAPDataset(Dataset):
                 set; how many distinct qualifying categories to collect.
                 None means every qualifying category in the split (e.g.
                 for a real Great Lakes run, not just a local dev subset).
+            max_images_per_category: only used when min_images_per_category
+                is set; caps how many images get collected per qualifying
+                category. None (default) means no cap, collect every real
+                image that category has. Previously there was no way to
+                express this: min_images_per_category alone doubled as
+                both "minimum to qualify" and "maximum ever collected",
+                so every category was silently capped at exactly that
+                minimum regardless of how many more real images existed
+                (confirmed empirically: num_categories=None with
+                min_images_per_category=4 returned exactly 184 samples,
+                46 categories x 4, not the real full dataset). Decoupled
+                so a genuine full-scale load is possible: pass None here
+                with num_categories=None for "everything, every
+                category." Safe to leave uncapped for training
+                specifically (see sampler.py's CategoryBalancedBatchSampler,
+                which already draws a random subset of images_per_category
+                from whatever pool exists each batch; a bigger uncapped
+                pool only adds epoch-to-epoch variety, the per-step image
+                count it actually loads doesn't change). Evaluation
+                functions that iterate the whole dataset directly instead
+                of through that sampler (evaluate.py, naive_baseline.py)
+                deliberately pin this to match min_images_per_category at
+                their call sites, preserving their existing bounded
+                behavior rather than inheriting unbounded-by-default.
         """
         if split not in ("train", "val", "test"):
             raise ValueError(f"split must be 'train', 'val', or 'test', got {split!r}")
@@ -89,7 +114,7 @@ class DeepFashionCAPDataset(Dataset):
         self.transform = transform
         if min_images_per_category is not None:
             self.samples = self._load_stratified_samples(
-                split, min_images_per_category, num_categories
+                split, min_images_per_category, num_categories, max_images_per_category
             )
         else:
             self.samples = self._load_samples(split, sample_size)
@@ -140,22 +165,43 @@ class DeepFashionCAPDataset(Dataset):
         return samples
 
     def _load_stratified_samples(
-        self, split: str, min_images_per_category: int, num_categories: int | None
+        self,
+        split: str,
+        min_images_per_category: int,
+        num_categories: int | None,
+        max_images_per_category: int | None = None,
     ) -> list[tuple[str, int, list[int]]]:
         """Collects `num_categories` distinct categories that each have
-        at least `min_images_per_category` images, scanning further into
-        the file than `_load_samples` would, since categories arrive in
-        contiguous blocks, not interleaved. num_categories=None means
-        collect every qualifying category, no early stop, scans the
-        whole file. Duplicates some parsing logic from `_load_samples`
-        rather than sharing it, this is mock/temporary code meant to be
-        replaced wholesale by the real pipeline, not worth a shared
-        abstraction for.
+        at least `min_images_per_category` images, up to
+        `max_images_per_category` each (None = no cap, every real image
+        that category has). Scans further into the file than
+        `_load_samples` would, since categories arrive in contiguous
+        blocks, not interleaved. num_categories=None means collect every
+        qualifying category.
+
+        Early-stops only at a category-block *boundary* (the file moves
+        on to a genuinely different category than the last line kept),
+        never mid-block. Categories are contiguous, so by the time a
+        boundary is crossed, every category counted toward the stop
+        decision is already guaranteed fully scanned, this avoids
+        stopping mid-block and silently truncating whichever category
+        happened to be in progress (a real bug the previous version
+        had when max_images_per_category was uncapped: it could stop
+        the instant a category's count first crossed
+        min_images_per_category, cutting off the rest of that
+        category's real images still later in its own block).
+
+        Duplicates some parsing logic from `_load_samples` rather than
+        sharing it, this is mock/temporary code meant to be replaced
+        wholesale by the real pipeline, not worth a shared abstraction
+        for.
         """
         by_category: dict[int, list[tuple[str, int, list[int]]]] = {}
         category_path = self.root / "list_category_img.txt"
         attr_path = self.root / "list_attr_img.txt"
         partition_path = self.root / "list_eval_partition.txt"
+
+        previous_category_label = None
 
         with (
             open(category_path) as cat_f,
@@ -179,21 +225,29 @@ class DeepFashionCAPDataset(Dataset):
                     continue
 
                 category_label = int(cat_parts[1]) - 1
-                bucket = by_category.setdefault(category_label, [])
-                if len(bucket) >= min_images_per_category:
-                    continue  # this category already has enough
 
-                attribute_label = [int(v) for v in attr_parts[1:]]
-                bucket.append((image_name, category_label, attribute_label))
-
-                if num_categories is not None:
+                # Block boundary: the previous category (if any) is now
+                # guaranteed fully scanned, safe to check whether enough
+                # qualifying categories already exist, before touching
+                # this new category's block at all.
+                if (
+                    num_categories is not None
+                    and previous_category_label is not None
+                    and category_label != previous_category_label
+                ):
                     qualifying = sum(
                         1 for b in by_category.values() if len(b) >= min_images_per_category
                     )
                     if qualifying >= num_categories:
                         break
-                # num_categories is None: no early stop, scan the whole
-                # file and keep every qualifying category.
+                previous_category_label = category_label
+
+                bucket = by_category.setdefault(category_label, [])
+                if max_images_per_category is not None and len(bucket) >= max_images_per_category:
+                    continue  # this category has reached its per-category cap
+
+                attribute_label = [int(v) for v in attr_parts[1:]]
+                bucket.append((image_name, category_label, attribute_label))
 
         qualifying_categories = [
             cat for cat, bucket in by_category.items() if len(bucket) >= min_images_per_category

@@ -33,6 +33,8 @@ def run_training_loop(
     margin: float = 0.2,
     high_overlap_threshold: int = DEFAULT_HIGH_OVERLAP_THRESHOLD,
     checkpoint_path: Path | None = None,
+    num_workers: int = 4,
+    max_images_per_category: int | None = None,
 ) -> tuple[SimilarityModel, list[float]]:
     """Runs a handful of steps end-to-end against a real, category-
     balanced DeepFashion subset, using the real SimilarityModel and the
@@ -43,6 +45,22 @@ def run_training_loop(
             here after training, so it can be reloaded and evaluated in
             a later, separate session. If None (default), nothing is
             saved to disk, only returned in memory.
+        num_workers: DataLoader subprocesses for image loading/decoding.
+            0 (the DataLoader default) loads every image synchronously
+            on the main process, invisible at small local-subset scale
+            but a real bottleneck at full-dataset scale, where the GPU
+            would otherwise sit idle waiting on file I/O. 4 is a safe
+            default for a typical multi-core machine; override higher
+            to match whatever CPU allocation a given run (e.g. a Great
+            Lakes SLURM job's --cpus-per-task) actually has available.
+        max_images_per_category: forwarded to DeepFashionCAPDataset, see
+            its docstring. Defaults to None (uncapped, every real image
+            each category has) deliberately: CategoryBalancedBatchSampler
+            already draws a random images_per_category-sized subset from
+            whatever pool exists each batch, so a bigger pool only adds
+            real epoch-to-epoch variety, it doesn't increase how many
+            images actually get loaded per step. Safe to leave uncapped
+            here even for small local runs.
 
     Returns:
         (model, losses): the trained model (already in memory, usable
@@ -56,16 +74,18 @@ def run_training_loop(
         transform=model.preprocess_train,
         min_images_per_category=images_per_category,
         num_categories=num_categories,
+        max_images_per_category=max_images_per_category,
     )
     logger.info(
         f"Loaded {len(dataset)} images across {num_categories} categories "
-        f"(split='train', >= {images_per_category} images each)"
+        f"(split='train', >= {images_per_category} images each, "
+        f"max_images_per_category={max_images_per_category})"
     )
 
     batch_sampler = CategoryBalancedBatchSampler(
         dataset, categories_per_batch=categories_per_batch, images_per_category=images_per_category
     )
-    loader = DataLoader(dataset, batch_sampler=batch_sampler)
+    loader = DataLoader(dataset, batch_sampler=batch_sampler, num_workers=num_workers)
     steps_per_epoch = len(loader)
     effective_batch_size = categories_per_batch * images_per_category
     logger.info(

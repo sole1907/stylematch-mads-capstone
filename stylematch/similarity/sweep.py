@@ -30,6 +30,7 @@ class TrainingConfig:
     num_categories: int = 20
     num_steps: int = 30
     embedding_dim: int = 256
+    max_images_per_category: int | None = None
 
 
 def build_grid(
@@ -64,13 +65,20 @@ def _find_matching_row(config: TrainingConfig, existing_results: pd.DataFrame) -
     resuming an interrupted sweep. Compares against each field's actual
     type on the live config object, not whatever dtype the CSV happened
     to load as, floats get a tolerance (CSV round-tripping can lose a
-    little precision), ints/others need exact equality. Returns the
-    matching row as a dict, or None if no match exists.
+    little precision), ints/others need exact equality. A field that's
+    None on the live config (e.g. max_images_per_category left uncapped)
+    round-trips through CSV as NaN, not None, so it's matched via
+    pd.isna rather than `==`, which would otherwise always be False
+    (NaN never equals anything, including None), silently breaking
+    resume for any config using that field. Returns the matching row as
+    a dict, or None if no match exists.
     """
     config_values = asdict(config)
     for _, row in existing_results.iterrows():
         if all(
-            math.isclose(value, float(row[name]), rel_tol=1e-9, abs_tol=1e-12)
+            pd.isna(row[name])
+            if value is None
+            else math.isclose(value, float(row[name]), rel_tol=1e-9, abs_tol=1e-12)
             if isinstance(value, float)
             else row[name] == value
             for name, value in config_values.items()
@@ -145,6 +153,7 @@ def run_sweep(
             freeze_until_block=config.freeze_until_block,
             embedding_dim=config.embedding_dim,
             margin=config.margin,
+            max_images_per_category=config.max_images_per_category,
         )
         after = evaluate_retrieval_accuracy(
             trained_model, split="val", num_categories=config.num_categories
