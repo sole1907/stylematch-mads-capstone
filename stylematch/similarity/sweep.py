@@ -318,14 +318,6 @@ if __name__ == "__main__":
             {"margin": [0.05, 0.1, 0.15, 0.2, 0.3, 0.5]},
             {"num_steps": [30, 60, 100, 200, 500]},
         ],
-        # num_categories=None: every qualifying category (46 in the real
-        # train split, confirmed empirically), not TrainingConfig's
-        # small-subset default of 20 — this is supposed to be the
-        # actual full-scale, representative run, not another capped
-        # one. Cheap to do: the batch sampler still only draws
-        # categories_per_batch categories per step regardless of pool
-        # size (see sampler.py), so this doesn't change per-step cost,
-        # only category diversity and a slightly bigger one-time scan.
         base_config=TrainingConfig(num_categories=None),
     )
     print(summary)
