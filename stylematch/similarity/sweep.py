@@ -27,7 +27,7 @@ class TrainingConfig:
     margin: float = 0.2
     categories_per_batch: int = 4
     images_per_category: int = 4
-    num_categories: int = 20
+    num_categories: int | None = 20
     num_steps: int = 30
     embedding_dim: int = 256
     max_images_per_category: int | None = None
@@ -318,7 +318,15 @@ if __name__ == "__main__":
             {"margin": [0.05, 0.1, 0.15, 0.2, 0.3, 0.5]},
             {"num_steps": [30, 60, 100, 200, 500]},
         ],
-        base_config=TrainingConfig(),
+        # num_categories=None: every qualifying category (46 in the real
+        # train split, confirmed empirically), not TrainingConfig's
+        # small-subset default of 20 — this is supposed to be the
+        # actual full-scale, representative run, not another capped
+        # one. Cheap to do: the batch sampler still only draws
+        # categories_per_batch categories per step regardless of pool
+        # size (see sampler.py), so this doesn't change per-step cost,
+        # only category diversity and a slightly bigger one-time scan.
+        base_config=TrainingConfig(num_categories=None),
     )
     print(summary)
     print("Final best config:", best_config)

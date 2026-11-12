@@ -101,7 +101,7 @@ def evaluate_retrieval_accuracy(
     model: SimilarityModel,
     split: str = "val",
     min_images_per_category: int = 4,
-    num_categories: int = 20,
+    num_categories: int | None = 20,
     batch_size: int = 32,
     min_shared_attributes: int = DEFAULT_MIN_SHARED_ATTRIBUTES,
     num_workers: int = 4,
