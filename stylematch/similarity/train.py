@@ -26,7 +26,7 @@ def run_training_loop(
     num_steps: int = 3,
     categories_per_batch: int = 4,
     images_per_category: int = 4,
-    num_categories: int = 20,
+    num_categories: int | None = 20,
     learning_rate: float = 1e-3,
     freeze_until_block: int = 8,
     embedding_dim: int = 256,
@@ -64,7 +64,8 @@ def run_training_loop(
         max_images_per_category=max_images_per_category,
     )
     logger.info(
-        f"Loaded {len(dataset)} images across {num_categories} categories "
+        f"Loaded {len(dataset)} images across "
+        f"{num_categories if num_categories is not None else 'every qualifying'} categories "
         f"(split='train', >= {images_per_category} images each, "
         f"max_images_per_category={max_images_per_category})"
     )

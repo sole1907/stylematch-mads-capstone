@@ -27,7 +27,7 @@ class TrainingConfig:
     margin: float = 0.2
     categories_per_batch: int = 4
     images_per_category: int = 4
-    num_categories: int = 20
+    num_categories: int | None = 20
     num_steps: int = 30
     embedding_dim: int = 256
     max_images_per_category: int | None = None
@@ -318,7 +318,7 @@ if __name__ == "__main__":
             {"margin": [0.05, 0.1, 0.15, 0.2, 0.3, 0.5]},
             {"num_steps": [30, 60, 100, 200, 500]},
         ],
-        base_config=TrainingConfig(),
+        base_config=TrainingConfig(num_categories=None),
     )
     print(summary)
     print("Final best config:", best_config)
