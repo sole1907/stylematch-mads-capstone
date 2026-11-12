@@ -17,14 +17,17 @@ from stylematch.similarity.model import SimilarityModel
 
 @torch.no_grad()
 def compute_embeddings(
-    model: SimilarityModel, dataset: DeepFashionCAPDataset, batch_size: int = 32
+    model: SimilarityModel, dataset: DeepFashionCAPDataset, batch_size: int = 32, num_workers: int = 4
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """Runs every image in `dataset` through `model` once. Returns
     (embeddings, category_labels, attribute_labels), each stacked
     across the whole dataset, not just one batch.
+
+    Args:
+        num_workers: DataLoader subprocesses for image loading/decoding.
     """
     model.eval()  # turns off patch_dropout; we want deterministic embeddings here
-    loader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
+    loader = DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers)
 
     all_embeddings = []
     all_category_labels = []
@@ -101,6 +104,7 @@ def evaluate_retrieval_accuracy(
     num_categories: int = 20,
     batch_size: int = 32,
     min_shared_attributes: int = DEFAULT_MIN_SHARED_ATTRIBUTES,
+    num_workers: int = 4,
 ) -> dict[str, float]:
     """Loads a stratified subset of `split` (same approach as training,
     see dataset.py), embeds it, and returns retrieval accuracy under
@@ -113,9 +117,17 @@ def evaluate_retrieval_accuracy(
         transform=model.preprocess_val,
         min_images_per_category=min_images_per_category,
         num_categories=num_categories,
+        # Pinned to match min_images_per_category deliberately, not left
+        # uncapped like train.py's default: this function iterates the
+        # whole dataset directly (no batch sampler bounding per-step
+        # cost), so an uncapped pool here would mean genuinely embedding
+        # every real image in num_categories categories, not a bounded
+        # evaluation subset. See dataset.py's max_images_per_category
+        # docstring for the full reasoning.
+        max_images_per_category=min_images_per_category,
     )
     embeddings, category_labels, attribute_labels = compute_embeddings(
-        model, dataset, batch_size=batch_size
+        model, dataset, batch_size=batch_size, num_workers=num_workers
     )
     return {
         "accuracy": top1_retrieval_accuracy(embeddings, category_labels),

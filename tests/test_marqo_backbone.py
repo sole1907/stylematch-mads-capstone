@@ -30,7 +30,7 @@ def load_and_embed_one_sample():
     model.eval()
 
     # Reuses our own Dataset, but with the backbone's own required
-    # preprocessing passed in as `transform`, instead of the mock
+    # preprocessing passed in as `transform`, instead of the default
     # resize-and-divide-by-255 placeholder dataset.py falls back to.
     dataset = DeepFashionCAPDataset(split="train", sample_size=1, transform=preprocess_val)
     image, category_label, _attribute_label = dataset[0]

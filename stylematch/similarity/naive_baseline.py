@@ -89,6 +89,11 @@ def evaluate_naive_color_baseline(
         transform=None,
         min_images_per_category=min_images_per_category,
         num_categories=num_categories,
+        # Pinned to match min_images_per_category, same reasoning as
+        # evaluate.py's evaluate_retrieval_accuracy: this function also
+        # iterates the whole dataset directly, uncapped would mean every
+        # real image in num_categories categories, not a bounded subset.
+        max_images_per_category=min_images_per_category,
     )
     features, category_labels = compute_color_histogram_batch(dataset, bins=bins)
     return {

@@ -45,3 +45,92 @@ def test_dataloader_batches():
     assert images.shape == (4, 3, 224, 224)
     assert categories.shape == (4,)
     assert attributes.shape == (4, NUM_ATTRIBUTES)
+
+
+def test_stratified_loading_explicit_cap_is_respected():
+    """max_images_per_category, when explicitly set, still caps each
+    category exactly as before the fix (preserving the old behavior for
+    callers that want a bounded subset, e.g. evaluate.py/
+    naive_baseline.py, which pin this deliberately rather than inherit
+    an uncapped default).
+    """
+    dataset = DeepFashionCAPDataset(
+        split="train", min_images_per_category=2, num_categories=5, max_images_per_category=2
+    )
+    counts: dict[int, int] = {}
+    for _, category_label, _ in dataset.samples:
+        counts[category_label] = counts.get(category_label, 0) + 1
+
+    assert len(counts) == 5
+    assert all(count == 2 for count in counts.values())
+
+
+def test_max_images_per_category_none_loads_more_than_the_minimum():
+    """The actual fix: with max_images_per_category left at its default
+    (None, uncapped), at least one real category should have strictly
+    more than min_images_per_category images collected, proving the cap
+    is genuinely decoupled, not silently still capping at the minimum
+    (the bug this replaces: num_categories=None with
+    min_images_per_category=4 previously returned exactly 46 x 4 = 184
+    samples, confirmed empirically before this fix, never more than 4
+    per category no matter how many a category actually had).
+    """
+    capped = DeepFashionCAPDataset(
+        split="train", min_images_per_category=2, num_categories=5, max_images_per_category=2
+    )
+    uncapped = DeepFashionCAPDataset(
+        split="train", min_images_per_category=2, num_categories=5, max_images_per_category=None
+    )
+
+    assert len(capped) == 10  # 5 categories x 2, the old-style bound
+    assert len(uncapped) > len(capped)  # same 5 categories, genuinely more images each
+
+
+def test_num_categories_early_stop_still_exact_when_uncapped():
+    """The block-boundary-only early stop (rewritten as part of this
+    fix, see dataset.py) should still return exactly num_categories
+    distinct categories, not more, not fewer, even though scanning now
+    continues to the end of whichever category's block was in progress
+    when the stop condition was first met.
+    """
+    dataset = DeepFashionCAPDataset(
+        split="train", min_images_per_category=2, num_categories=5, max_images_per_category=None
+    )
+    distinct_categories = {category_label for _, category_label, _ in dataset.samples}
+    assert len(distinct_categories) == 5
+
+
+def test_getitem_falls_back_to_next_index_on_unreadable_file():
+    """One corrupted/missing file shouldn't crash an hours-long
+    unattended run, it should fall back to a different valid sample
+    and log a warning. Simulated by pointing one real sample's filename
+    at a file that doesn't exist, no need for an actually-corrupted
+    image fixture.
+    """
+    dataset = DeepFashionCAPDataset(split="train", sample_size=5)
+    _, real_category, real_attributes = dataset.samples[2]
+    dataset.samples[2] = ("definitely_does_not_exist.jpg", real_category, real_attributes)
+
+    image, category_label, attribute_label = dataset[2]  # should NOT raise
+
+    # Substituted index 3 (idx+1, the next real sample), not index 2's
+    # (fabricated) label, confirming it genuinely re-read the
+    # substituted sample's own metadata, not the original broken one's.
+    _, expected_category, expected_attributes = dataset.samples[3]
+    assert category_label == expected_category
+    assert attribute_label.tolist() == expected_attributes
+    assert image.shape == (3, 224, 224)
+
+
+def test_getitem_raises_clearly_when_every_sample_is_unreadable():
+    """If every sample is unreadable, that's not a one-off bad file,
+    it's something fundamentally wrong with the dataset (bad root path,
+    deleted data directory), and should raise loudly and quickly, not
+    loop through the entire dataset trying every index.
+    """
+    dataset = DeepFashionCAPDataset(split="train", sample_size=3)
+    for i, (_, category, attributes) in enumerate(dataset.samples):
+        dataset.samples[i] = (f"nonexistent_{i}.jpg", category, attributes)
+
+    with pytest.raises(RuntimeError, match="consecutive samples failed to load"):
+        dataset[0]
