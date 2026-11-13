@@ -1,0 +1,4 @@
+stage,varied,learning_rate,freeze_until_block,improvement,margin,num_steps
+1,"learning_rate, freeze_until_block",1e-05,10.0,0.17777779698371887,,
+2,margin,,,0.09444445371627808,0.5,
+3,num_steps,,,0.11666667461395264,,60.0
