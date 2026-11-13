@@ -1,13 +1,13 @@
 #!/bin/bash
-# Hyperparameter iteration #2: narrow margin follow-up (2 new configs,
-# margin=[0.7, 1.0] at num_steps=60, the actual overall winning step
-# count; margin=0.5 at num_steps=60 already exists in
-# staged_search_stage_3.csv as the single best result of the whole
-# original sweep, not re-run), see
-# scripts/run_similarity_margin_iteration2.py and
-# dev-notes/full-scale-hyperparameter-sweep.md for why this exists
-# (the original sweep's margin winner, 0.5, sat at the edge of the
-# tested range).
+# Hyperparameter iteration #2: narrow margin follow-up (10 new configs,
+# margin=[0.7, 1.0] x num_steps=[30,60,100,200,500], the same num_steps
+# grid as the original sweep's stage 3 — swept again here, not fixed at
+# 60, since a bigger margin could plausibly peak at a different
+# num_steps than margin=0.5's peak of 60; margin=0.5 across all 5
+# num_steps values already exists in staged_search_stage_3.csv, not
+# re-run), see scripts/run_similarity_margin_iteration2.py for why this
+# exists (the original sweep's margin winner, 0.5, sat at the edge of
+# the tested range).
 #
 # Same one-time setup as run_similarity_sweep.slurm (repo already
 # cloned, venv already built, real data already on this machine) —
@@ -25,7 +25,7 @@
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=48G
-#SBATCH --time=00:30:00
+#SBATCH --time=03:00:00
 #SBATCH --output=reports/margin_iteration2_%j.out
 #SBATCH --error=reports/margin_iteration2_%j.err
 
