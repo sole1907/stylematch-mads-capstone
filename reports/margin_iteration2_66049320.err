@@ -1,0 +1,6 @@
+2026-11-13 04:10:57.668 -05:00 | INFO     | stylematch.config:<module>:12 - PROJ_ROOT path is: /home/ayansola/stylematch-mads-capstone
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+
+real	77m36.963s
+user	253m32.816s
+sys	16m10.733s
