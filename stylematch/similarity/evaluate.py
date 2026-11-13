@@ -2,9 +2,8 @@
 image, checks whether its nearest *other* image by embedding similarity
 is actually a match, under two different definitions of "correct":
 category label alone, or category + attribute overlap together (see
-attribute_mining.py and dev-notes/architecture-decision.md). Both are
-kept, the category-only version remains a useful, simpler comparison
-point, not dead code.
+attribute_mining.py). Both are kept, the category-only version remains
+a useful, simpler comparison point, not dead code.
 """
 
 import torch

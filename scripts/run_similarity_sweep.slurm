@@ -1,8 +1,8 @@
 #!/bin/bash
 # Submits sweep.py's full-scale staged hyperparameter search as a Great
 # Lakes batch job (learning_rate x freeze_until_block jointly, then
-# margin, then num_steps — see sweep.py's __main__ and
-# dev-notes/architecture-decision.md for why staged this way).
+# margin, then num_steps — see sweep.py's __main__ for why staged this
+# way).
 #
 # One-time setup BEFORE first use (venv/dependencies are OS-specific,
 # the repo lives in /home so results persist reliably, the actual
