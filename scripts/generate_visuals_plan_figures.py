@@ -66,6 +66,7 @@ def figure_1_category_distribution() -> None:
     ax.barh(counts.index, counts.values, color=ACCENT, height=0.7)
     ax.set_xscale("log")
     ax.set_xlabel("Images in train split (log scale)")
+    ax.set_ylabel("DeepFashion garment category")
     ax.set_title(
         f"Category sizes span a {counts.max() // counts.min()}x range —\n"
         "this is why batches must be built category-balanced, not randomly",
@@ -116,7 +117,9 @@ def figure_2_baseline_comparison() -> None:
     ax.set_ylim(0, 100)
     ax.set_ylabel("Top-1 retrieval accuracy (%)")
     ax.set_title(
-        "Learned embeddings beat a hand-crafted color baseline\nby >2.8x, not just random chance",
+        "Learned embeddings beat a hand-crafted color baseline\n"
+        "by >2.8x, not just random chance\n"
+        "(small validation subset — not yet the full-scale number)",
         fontsize=11, loc="left",
     )
     for bar, val in zip(bars, accuracy):
@@ -125,8 +128,7 @@ def figure_2_baseline_comparison() -> None:
     fig.text(
         0.02, 0.01,
         "Figure 2. Same stratified validation subset, same metric (top-1 nearest-neighbor by category). "
-        "Small-subset numbers; will be recomputed on the full-scale final config (margin=0.7, num_steps=100) "
-        "before the final report.",
+        "Will be recomputed on the full-scale final config (margin=0.7, num_steps=100) before the final report.",
         fontsize=8, color="#555555",
     )
     fig.tight_layout(rect=(0, 0.06, 1, 1))
@@ -157,17 +159,29 @@ def figure_3_margin_numsteps_heatmap() -> None:
     ax.set_ylabel("margin")
 
     peak_val = pivot.values.max()
+    cmap = plt.get_cmap("RdBu")
     for i in range(pivot.shape[0]):
         for j in range(pivot.shape[1]):
             val = pivot.values[i, j]
             is_peak = val == peak_val
+            # Pick white or black text based on this cell's actual rendered
+            # color, not a fixed guess — dark navy cells (strong positive
+            # improvement, like the peak) need white text; pale cells need
+            # black, so every cell stays legible regardless of position on
+            # the colormap.
+            normalized = 0.5 + 0.5 * (val / vmax) if vmax else 0.5
+            r, g, b, _ = cmap(normalized)
+            luminance = 0.299 * r + 0.587 * g + 0.114 * b
+            text_color = "white" if luminance < 0.6 else "black"
             ax.text(
                 j, i, f"{val:+.3f}", ha="center", va="center",
                 fontsize=9, fontweight="bold" if is_peak else "normal",
-                color="black",
+                color=text_color,
             )
             if is_peak:
-                ax.add_patch(plt.Rectangle((j - 0.5, i - 0.5), 1, 1, fill=False, edgecolor="black", lw=2.5))
+                ax.add_patch(
+                    plt.Rectangle((j - 0.5, i - 0.5), 1, 1, fill=False, edgecolor=text_color, lw=2.5)
+                )
 
     ax.set_title(
         "Different margins peak at different num_steps —\nmargin=0.7 wants 100 steps, margin=0.5 wants 60",
@@ -194,18 +208,26 @@ def figure_4_compatibility_engine_mockup() -> None:
     true_pairs = rng.normal(0.72, 0.1, 500).clip(0, 1)
     random_pairs = rng.normal(0.38, 0.15, 500).clip(0, 1)
 
-    fig, ax = plt.subplots(figsize=(6, 4.5))
+    fig, ax = plt.subplots(figsize=(6, 5.3))
     ax.hist(random_pairs, bins=25, alpha=0.5, color=NEUTRAL, label="Random outfit pairs", hatch="//")
     ax.hist(true_pairs, bins=25, alpha=0.5, color=ACCENT, label="Real outfit pairs", hatch="//")
     ax.set_xlabel("Compatibility score")
     ax.set_ylabel("Count")
     ax.legend(frameon=False, fontsize=9)
-    ax.set_title(
-        "PLANNED: real outfit pairs should score higher\nthan random pairs (illustrative, not real data)",
-        fontsize=11, loc="left", color="#333333",
+    fig.text(
+        0.02, 0.96,
+        "PLANNED: real outfit pairs should score higher than random pairs",
+        fontsize=11, color="#333333", ha="left", fontweight="bold",
     )
     fig.text(
-        0.5, 0.5, "ILLUSTRATIVE — MOCKUP\nNOT REAL DATA",
+        0.02, 0.905,
+        "What this compares, once built: the compatibility score for items actually worn together in a real "
+        "outfit vs. items paired at random — to check the model tells coordinated outfits apart from mismatched "
+        "ones. Illustrative, not real data.",
+        fontsize=8.5, color="#444444", ha="left", wrap=True,
+    )
+    fig.text(
+        0.5, 0.45, "ILLUSTRATIVE — MOCKUP\nNOT REAL DATA",
         fontsize=22, color="#cccccc", ha="center", va="center", rotation=30,
         alpha=0.6, fontweight="bold", transform=ax.transAxes,
     )
@@ -215,7 +237,7 @@ def figure_4_compatibility_engine_mockup() -> None:
         "exists: a compatibility-score histogram for true vs. random outfit pairs. Numbers shown are fabricated.",
         fontsize=8, color="#555555",
     )
-    fig.tight_layout(rect=(0, 0.06, 1, 1))
+    fig.tight_layout(rect=(0, 0.06, 1, 0.84))
     fig.savefig(FIGURES_DIR / "04_compatibility_engine_mockup.png", bbox_inches="tight")
     plt.close(fig)
 
