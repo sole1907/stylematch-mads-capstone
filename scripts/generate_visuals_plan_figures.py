@@ -10,10 +10,12 @@ illustrative, clearly-labeled placeholder data, not measured results.
 Figure 4 sketches a generic compatibility-score comparison; figure 5
 sketches FITB accuracy and ROC-AUC specifically, the standard
 compatibility-task metrics (Vasileva et al.) this project already
-committed to using — and includes Vasileva et al.'s real published
+committed to using, and includes Vasileva et al.'s real published
 numbers (verified via the paper/its repo, not quoted from memory) as
-a reference point alongside the fabricated "ours" placeholder, with
-the two kept visually distinct.
+a reference point alongside the fabricated "ours" placeholder. The
+whole figure is still marked illustrative, since the engine itself
+isn't built and this isn't a finished result yet, even though that
+one reference number is real.
 
 Every figure has two header lines: a small grey "eyebrow" naming what
 the figure is (Rule 1: know your audience — a skimming reader should
@@ -162,19 +164,17 @@ def figure_1_category_distribution() -> None:
 
 
 def figure_2_baseline_comparison() -> None:
-    """Real data: random vs. naive color-histogram vs. trained model,
-    same metric, same tiny validation subset (see Checklist). That
-    subset is also the one used to pick the hyperparameters shown here
-    (learning_rate=1e-4, freeze_until_block=8 — the small-subset
-    winner), which the full-scale sweep later found did NOT hold at
-    scale (see dev-notes). So this comparison is somewhat optimistic in
-    the trained model's favor: it's evaluated on the same data that
-    picked its hyperparameters, not a held-out set."""
+    """Real data, but illustrative: random vs. naive color-histogram
+    vs. trained model, same metric, same tiny 20-category validation
+    subset (see Checklist), using hyperparameters the later full-scale
+    sweep superseded. Marked illustrative rather than carrying a long
+    caveat explanation — this will be redone on the full-scale final
+    config (margin=0.7, num_steps=100) before the final report."""
     methods = ["Random\nchance", "Naive color\nhistogram", "Trained similarity\nmodel (ours)"]
     accuracy = [3.8, 18.75, 53.75]
     colors = [NEUTRAL, NEUTRAL, ACCENT]
 
-    fig, ax = plt.subplots(figsize=(6, 6.2))
+    fig, ax = plt.subplots(figsize=(6, 5.6))
     bars = ax.bar(methods, accuracy, color=colors, width=0.6)
     ax.set_ylim(0, 100)
     ax.set_ylabel("Top-1 retrieval accuracy (%)")
@@ -182,26 +182,29 @@ def figure_2_baseline_comparison() -> None:
         fig,
         eyebrow="Figure 2 — similarity model vs. naive baseline",
         headline="Learned embeddings beat a hand-crafted color baseline\nby >2.8x, not just random chance",
-        eyebrow_y=0.975, headline_y=0.925,
+        eyebrow_y=0.97, headline_y=0.905,
     )
     fig.text(
-        0.02, 0.825,
-        "Caveat: these numbers used the small-subset-chosen hyperparameters (learning_rate=1e-4, "
-        "freeze_until_block=8). The full-scale sweep later found the real winner (margin=0.7, num_steps=100, "
-        "learning_rate=1e-5, freeze_until_block=10) — hyperparameter tuning itself is already done; what's "
-        "pending is a one-time re-run of this same comparison using that final config, not more tuning.",
-        fontsize=8, color="#a05a2c", ha="left", wrap=True, style="italic",
+        0.02, 0.845,
+        "ILLUSTRATIVE — based on a small 20-category subset, not the full-scale final config.",
+        fontsize=8.5, color="#a05a2c", ha="left", style="italic", fontweight="bold",
     )
+    for ax_bar in (ax,):
+        ax_bar.text(
+            0.5, 0.5, "ILLUSTRATIVE",
+            fontsize=22, color="#cccccc", ha="center", va="center", rotation=30,
+            alpha=0.6, fontweight="bold", transform=ax_bar.transAxes,
+        )
     for bar, val in zip(bars, accuracy):
         ax.annotate(f"{val:.1f}%", xy=(bar.get_x() + bar.get_width() / 2, val), xytext=(0, 4),
                      textcoords="offset points", ha="center", fontsize=10, fontweight="bold")
     fig.text(
         0.02, 0.01,
-        "Figure 2. Same stratified validation subset, same metric (top-1 nearest-neighbor by category). "
-        "Will be recomputed on the full-scale final config (margin=0.7, num_steps=100) before the final report.",
+        "Figure 2. Same stratified 20-category validation subset, same metric (top-1 nearest-neighbor by "
+        "category). Will be redone on the full-scale final config (margin=0.7, num_steps=100) before the final report.",
         fontsize=8, color="#555555",
     )
-    fig.tight_layout(rect=(0, 0.06, 1, 0.8))
+    fig.tight_layout(rect=(0, 0.06, 1, 0.78))
     fig.savefig(FIGURES_DIR / "02_baseline_comparison.png", bbox_inches="tight")
     plt.close(fig)
 
@@ -318,41 +321,33 @@ def figure_4_compatibility_engine_mockup() -> None:
 
 
 def figure_5_compatibility_engine_metrics_mockup() -> None:
-    """PARTLY REAL, PARTLY ILLUSTRATIVE: the compatibility engine hasn't
-    been built yet, so "ours" is fabricated — but Vasileva et al.
-    (2018, ECCV), "Learning Type-Aware Embeddings for Fashion
-    Compatibility", published real FITB/AUC numbers on the Polyvore
-    Outfits dataset (nondisjoint split): AUC=0.86, FITB=55.3%. Verified
-    via https://arxiv.org/abs/1803.09196 and the paper's own repo
-    (https://github.com/mvasil/fashion-compatibility), not quoted from
-    memory. Included as a real reference point, not just random
-    chance, so "ours" has a literature bar to clear, not just a floor.
-    The real (Vasileva) and fabricated ("ours") elements are kept
-    visually distinct — only "ours" is hatched and annotated
-    "(illustrative)" — so the one real citation in this mockup isn't
-    swept into the same "not real data" bucket as the placeholder
-    numbers."""
+    """ILLUSTRATIVE, mark the whole figure as such for now: the
+    compatibility engine hasn't been built yet, so even though
+    Vasileva et al.'s (2018, ECCV) published numbers (AUC=0.86,
+    FITB=55.3%, Polyvore Outfits nondisjoint split — verified via
+    https://arxiv.org/abs/1803.09196 and the paper's own repo
+    https://github.com/mvasil/fashion-compatibility, not quoted from
+    memory) are real, "ours" next to it is fabricated, and this whole
+    figure is still just a plan for what we'll report once the engine
+    exists — not treated as a finished result yet."""
     VASILEVA_FITB = 55.3
     VASILEVA_AUC = 0.86
-    CITED = "#8a6d3b"  # distinct from NEUTRAL/ACCENT: marks "real, cited" data specifically
+    CITED = "#8a6d3b"  # distinct from NEUTRAL/ACCENT: this bar's value is a real citation, not fabricated
 
     fig, (ax_fitb, ax_roc) = plt.subplots(1, 2, figsize=(11, 5))
 
     # Panel A: FITB accuracy — random guess, the real Vasileva et al.
-    # published number, and our fabricated placeholder.
-    fitb_methods = ["Random\nguess (1-of-4)", "Vasileva et al. 2018\n(published, cited)", "Compatibility model\n(ours, illustrative)"]
+    # published number (for scale/context), and our fabricated
+    # placeholder.
+    fitb_methods = ["Random\nguess (1-of-4)", "Vasileva et al. 2018", "Compatibility model\n(ours)"]
     fitb_acc = [25.0, VASILEVA_FITB, 65.0]
     colors = [NEUTRAL, CITED, ACCENT]
-    hatches = [None, None, "//"]
-    bars = ax_fitb.bar(fitb_methods, fitb_acc, color=colors, width=0.6)
-    for bar, hatch in zip(bars, hatches):
-        if hatch:
-            bar.set_hatch(hatch)
+    ax_fitb.bar(fitb_methods, fitb_acc, color=colors, width=0.6)
     ax_fitb.set_ylim(0, 100)
     ax_fitb.set_ylabel("FITB accuracy (%)")
     ax_fitb.set_title("Fill-in-the-blank accuracy", fontsize=10, loc="left")
-    for bar, val in zip(bars, fitb_acc):
-        ax_fitb.annotate(f"{val:.1f}%", xy=(bar.get_x() + bar.get_width() / 2, val), xytext=(0, 4),
+    for i, val in enumerate(fitb_acc):
+        ax_fitb.annotate(f"{val:.1f}%", xy=(i, val), xytext=(0, 4),
                           textcoords="offset points", ha="center", fontsize=10, fontweight="bold")
 
     # Panel B: our illustrative ROC curve vs. the random diagonal.
@@ -362,7 +357,7 @@ def figure_5_compatibility_engine_metrics_mockup() -> None:
     fpr = np.linspace(0, 1, 200)
     tpr = np.power(fpr, 0.4)
     auc = np.trapezoid(tpr, fpr)
-    ax_roc.plot(fpr, tpr, color=ACCENT, lw=2, linestyle=(0, (6, 2)), label=f"Ours, illustrative (AUC={auc:.2f})")
+    ax_roc.plot(fpr, tpr, color=ACCENT, lw=2, label=f"Compatibility model (AUC={auc:.2f})")
     ax_roc.plot([0, 1], [0, 1], color=NEUTRAL, lw=1.5, linestyle="--", label="Random (AUC=0.50)")
     ax_roc.set_xlabel("False positive rate")
     ax_roc.set_ylabel("True positive rate")
@@ -371,23 +366,30 @@ def figure_5_compatibility_engine_metrics_mockup() -> None:
     ax_roc.set_aspect("equal")
     ax_roc.text(
         0.04, 0.96,
-        f"Reference: Vasileva et al. 2018\nreported AUC={VASILEVA_AUC} (published).\nCurve shape not published —\nnumber only, not plotted.",
+        f"For reference: Vasileva et al. 2018\nreported AUC={VASILEVA_AUC} (published).\nCurve shape not published —\nnumber only, not plotted.",
         fontsize=7.5, color=CITED, va="top", ha="left", transform=ax_roc.transAxes,
     )
+
+    for ax in (ax_fitb, ax_roc):
+        ax.text(
+            0.5, 0.5, "ILLUSTRATIVE\nMOCKUP",
+            fontsize=18, color="#cccccc", ha="center", va="center", rotation=30,
+            alpha=0.7, fontweight="bold", transform=ax.transAxes,
+        )
 
     add_header(
         fig,
         eyebrow="Figure 5 (planned) — compatibility engine evaluation metrics",
         headline="PLANNED: fill-in-the-blank accuracy and ROC-AUC, the standard outfit-\n"
-        "compatibility metrics (Vasileva et al.) — \"ours\" is illustrative, Vasileva's bar is real",
+        "compatibility metrics (Vasileva et al.) — illustrative, not a finished result",
         eyebrow_y=0.97, headline_y=0.885,
     )
     fig.text(
         0.02, 0.01,
         "Figure 5 (planned). Compatibility engine not yet built. FITB = pick the correct missing item from "
-        "4 candidates (random guess = 25%); ROC-AUC = compatible-vs-incompatible pair classification. Vasileva et "
-        "al. 2018 (Polyvore Outfits, nondisjoint split) is a real published citation, not fabricated — only the "
-        "hatched \"ours\" bar and dashed \"ours\" curve are fabricated placeholders.",
+        "4 candidates (random guess = 25%); ROC-AUC = compatible-vs-incompatible pair classification. Vasileva "
+        "et al. 2018 (Polyvore Outfits, nondisjoint split) is a real published number, included for scale; "
+        "\"ours\" is a fabricated placeholder. Marked illustrative throughout since the engine itself isn't built.",
         fontsize=8, color="#555555",
     )
     fig.tight_layout(rect=(0, 0.06, 1, 0.78))
