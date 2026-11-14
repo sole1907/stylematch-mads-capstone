@@ -39,15 +39,17 @@ Simple Rules for Better Figures" (PLOS Comp Bio):
     text/border color picked from each cell's actual rendered luminance
     so the darkest cell (the winner) stays legible (Rule 6: use color
     effectively)
-  - the mockup figure is visually distinct (hatched, watermarked,
-    labeled "ILLUSTRATIVE") so it can't be mistaken for a real result,
-    and its ROC curve's AUC is computed from the curve actually drawn,
-    not asserted separately, so the figure can't contradict itself
-    (Rule 9: don't mislead the reader)
+  - any figure resting on a small/stale subset (figs 2, 4, 5) is
+    watermarked "ILLUSTRATIVE" so it can't be mistaken for a finished
+    result, and figure 5's ROC curve's AUC is computed from the curve
+    actually drawn, not asserted separately, so the figure can't
+    contradict itself (Rule 9: don't mislead the reader)
 
 Run directly:
     python scripts/generate_visuals_plan_figures.py
-Outputs to reports/figures/ (gitignored, regenerate as needed).
+Outputs 5 PNGs to reports/figures/ (gitignored, regenerate as needed),
+plus a combined reports/figures/visuals_mini_deliverable.pdf (one
+figure per page) for sharing as a single file.
 """
 
 import matplotlib.pyplot as plt
@@ -397,6 +399,26 @@ def figure_5_compatibility_engine_metrics_mockup() -> None:
     plt.close(fig)
 
 
+FIGURE_FILENAMES = [
+    "01_category_distribution.png",
+    "02_baseline_comparison.png",
+    "03_margin_numsteps_heatmap.png",
+    "04_compatibility_engine_mockup.png",
+    "05_compatibility_engine_metrics_mockup.png",
+]
+
+
+def bundle_into_pdf() -> None:
+    """Combines the 5 PNGs into one multi-page PDF (one figure per
+    page, in order) so the whole set can be shared as a single file."""
+    from PIL import Image
+
+    pages = [Image.open(FIGURES_DIR / name).convert("RGB") for name in FIGURE_FILENAMES]
+    pdf_path = FIGURES_DIR / "visuals_mini_deliverable.pdf"
+    pages[0].save(pdf_path, save_all=True, append_images=pages[1:])
+    print(f"Saved combined PDF to {pdf_path}")
+
+
 def main() -> None:
     FIGURES_DIR.mkdir(parents=True, exist_ok=True)
     figure_1_category_distribution()
@@ -405,6 +427,7 @@ def main() -> None:
     figure_4_compatibility_engine_mockup()
     figure_5_compatibility_engine_metrics_mockup()
     print(f"Saved 5 figures to {FIGURES_DIR}")
+    bundle_into_pdf()
 
 
 if __name__ == "__main__":
