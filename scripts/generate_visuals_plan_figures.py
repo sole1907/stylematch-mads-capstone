@@ -17,34 +17,6 @@ whole figure is still marked illustrative, since the engine itself
 isn't built and this isn't a finished result yet, even though that
 one reference number is real.
 
-Every figure has two header lines: a small grey "eyebrow" naming what
-the figure is (Rule 1: know your audience — a skimming reader should
-be able to tell what they're looking at before reading the takeaway),
-and a bold headline stating the one thing it's meant to prove (Rule 2:
-identify the message).
-
-Other design choices follow Rougier, Droettboom & Fleet (2014), "Ten
-Simple Rules for Better Figures" (PLOS Comp Bio):
-  - bar charts start at 0, values are labeled directly on the bars
-    rather than requiring the reader to read off an axis (Rule 9: don't
-    mislead; Rule 5: avoid chartjunk)
-  - figure 1 deliberately avoids a log-scale axis: compressing a
-    4,739x range onto one log axis made bar length stop reflecting
-    real size (a 5x-larger bar could look barely longer), exactly the
-    "data doesn't reflect proper size" failure mode the article warns
-    about. Two linear panels (full range + a zoomed tail) instead, so
-    bar length is always directly proportional to count (Rule 9)
-  - the heatmap uses a diverging, colorblind-safe colormap centered on
-    zero (not red/green) and annotates every cell with its number, with
-    text/border color picked from each cell's actual rendered luminance
-    so the darkest cell (the winner) stays legible (Rule 6: use color
-    effectively)
-  - any figure resting on a small/stale subset (figs 2, 4, 5) is
-    watermarked "ILLUSTRATIVE" so it can't be mistaken for a finished
-    result, and figure 5's ROC curve's AUC is computed from the curve
-    actually drawn, not asserted separately, so the figure can't
-    contradict itself (Rule 9: don't mislead the reader)
-
 Run directly:
     python scripts/generate_visuals_plan_figures.py
 Outputs 5 PNGs to reports/figures/ (gitignored, regenerate as needed),
@@ -84,19 +56,7 @@ def add_header(fig, eyebrow: str, headline: str, eyebrow_y: float, headline_y: f
 
 
 def figure_1_category_distribution() -> None:
-    """Real data: per-category image counts in the train split.
-
-    Two linear-scale panels, not one log-scale panel: a log axis
-    compresses the gap between e.g. 10,000 and 52,138 so much that a
-    5x-larger bar can look barely longer than its neighbor — exactly
-    the "data doesn't reflect proper size" problem the article warns
-    about, and confusing for a reader who doesn't already think in
-    exponents. Left panel is the honest full-range picture (bar length
-    truly proportional to count, most of the tail is barely visible —
-    that IS the real story); right panel re-plots just the tail
-    (everything under 3,000 images) on its own linear scale so those
-    smaller categories' real differences are visible too.
-    """
+    """Real data: per-category image counts in the train split."""
     ds = DeepFashionCAPDataset(split="train", min_images_per_category=4, num_categories=None, max_images_per_category=None)
     counts = pd.Series([s[1] for s in ds.samples]).value_counts()
 
@@ -168,10 +128,10 @@ def figure_1_category_distribution() -> None:
 def figure_2_baseline_comparison() -> None:
     """Real data, but illustrative: random vs. naive color-histogram
     vs. trained model, same metric, same tiny 20-category validation
-    subset (see Checklist), using hyperparameters the later full-scale
-    sweep superseded. Marked illustrative rather than carrying a long
-    caveat explanation — this will be redone on the full-scale final
-    config (margin=0.7, num_steps=100) before the final report."""
+    subset, using hyperparameters the later full-scale sweep
+    superseded. Marked illustrative rather than carrying a long caveat
+    explanation — this will be redone on the full-scale final config
+    (margin=0.7, num_steps=100) before the final report."""
     methods = ["Random\nchance", "Naive color\nhistogram", "Trained similarity\nmodel (ours)"]
     accuracy = [3.8, 18.75, 53.75]
     colors = [NEUTRAL, NEUTRAL, ACCENT]
