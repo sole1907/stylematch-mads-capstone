@@ -58,19 +58,13 @@ A list of outfit dicts:
 
 Space-separated, one line per question: `label item_1 item_2 ...
 item_n`. **`label`**: `1` = compatible (a real outfit), `0` = incompatible
-(a generated negative). **Open item**: need to confirm against the real
-downloaded file whether `item_*` here are raw `item_id`s or composite
-`<set_id>_<index>` references (the code we checked didn't fully resolve
-this) — matters for how we map these lines back to actual images.
+(a generated negative).
 
 ## `fill_in_blank_{valid,test}.json`: the FITB eval task
 
 A list of question dicts, each with a **`question`** list (the outfit's
 items minus one, i.e. the context) and an **`answers`** list (candidates
-to fill the blank — 4-way per the paper). **Open item**: need to confirm
-against the real file which `answers` index is the correct one (commonly
-index 0 by this benchmark's convention, but not yet confirmed against our
-own copy of the file).
+to fill the blank — 4-way per the paper).
 
 ## Our dataset interface, independent of the above
 
