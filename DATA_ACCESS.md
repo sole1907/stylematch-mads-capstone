@@ -80,28 +80,11 @@ vocabulary, encoding, the train/val/test split), see
 - **License:** gated, requires requesting access on Hugging Face with an
   institutional/research-affiliated email, subject to manual approval.
   Explicitly "intended solely for academic and non-profit research
-  purposes." Treated as academic-use-only; no redistribution.
+  purposes." We're requesting access with a university email and treating
+  it as academic-use-only; no redistribution.
 - **Access method:** request access at the Hugging Face link above
-  (institutional email required). Status: **approved**. Authenticate
-  locally (`huggingface-cli login`, or an `HF_TOKEN` env var) before
-  running the download script below.
-
-### Download
-
-```bash
-python scripts/download_polyvore.py download
-python scripts/download_polyvore.py extract-images
-```
-
-Two steps, not one: images aren't loose files in this Hugging Face repo
-like DeepFashion's were, they're embedded inside parquet shards. The
-first step pulls the real annotation files + those shards into
-`data/raw/polyvore_outfits/`; the second reads the shards and writes out
-`images/<item_id>.jpg`, reconstructing the loose-file layout our dataset
-interface expects.
-
-For what's actually inside the annotation files, see
-[`references/polyvore_outfits_schema.md`](references/polyvore_outfits_schema.md).
+  (institutional email required). Status: access request pending, will be
+  updated here once approved and the download pipeline is in place.
 
 ---
 

@@ -1,5 +1,4 @@
 gdown
-huggingface_hub
 ipython
 jupyterlab
 loguru
@@ -10,7 +9,6 @@ open_clip_torch
 pandas
 Pillow
 pip
-pyarrow
 pytest
 python-dotenv
 pytorch-metric-learning
