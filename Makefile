@@ -69,7 +69,8 @@ data-similarity: requirements
 ## Make compatibility-engine dataset
 .PHONY: data-compatibility
 data-compatibility: requirements
-	$(PYTHON_INTERPRETER) stylematch/compatibility/dataset.py
+	$(PYTHON_INTERPRETER) scripts/download_polyvore.py download
+	$(PYTHON_INTERPRETER) scripts/download_polyvore.py extract-images
 
 
 #################################################################################
