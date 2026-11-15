@@ -25,6 +25,11 @@ EXTERNAL_DATA_DIR = DATA_DIR / "external"
 # gitignored).
 DEEPFASHION_DIR = Path(os.environ.get("DEEPFASHION_DIR", RAW_DATA_DIR / "deepfashion"))
 
+# Same override pattern as DEEPFASHION_DIR, for the compatibility
+# engine's dataset instead. See references/polyvore_outfits_schema.md
+# for what's inside this directory.
+POLYVORE_DIR = Path(os.environ.get("POLYVORE_DIR", RAW_DATA_DIR / "polyvore_outfits"))
+
 # Same override pattern as DEEPFASHION_DIR above, for the same reason:
 # checkpoints/results currently land wherever the repo itself is cloned
 # (fine by default, e.g. Great Lakes' /home persists reliably), but
