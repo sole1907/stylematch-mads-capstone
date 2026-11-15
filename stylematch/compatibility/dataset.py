@@ -17,21 +17,13 @@ from stylematch.config import POLYVORE_DIR
 class PolyvoreOutfitDataset(Dataset):
     """PyTorch Dataset over real outfits, for training.
 
-    Interface contract, to be agreed with Yuzuru before implementation:
     `__getitem__` returns one whole outfit (a variable-length list of
-    items), not a single item or a pre-built pair/triplet. Unlike the
-    similarity engine's single-item `DeepFashionCAPDataset`, this is the
-    unavoidable shape here: compatibility is a property of a set of
-    items, not of any single one. Positive/negative pair or triplet
-    construction (same-outfit items as positive signal, cross-outfit
-    items as negative) happens downstream, via a batch sampler, mirroring
-    how `CategoryBalancedBatchSampler` does this for the similarity
-    engine rather than baking it into the dataset itself.
-
-    Whether the compatibility model consumes raw images directly or the
-    similarity engine's embeddings (Week 4's "optional chaining") is a
-    model-level decision, not a dataset one — this class always returns
-    raw images; the model decides what to do with them.
+    items) — this is the unavoidable shape here: compatibility is a
+    property of a set of items, not of any single one. Positive/negative
+    pair or triplet construction (same-outfit items as positive signal,
+    cross-outfit items as negative) happens downstream, via a batch
+    sampler, mirroring how `CategoryBalancedBatchSampler` does this for
+    the similarity engine rather than baking it into the dataset itself.
     """
 
     def __init__(
