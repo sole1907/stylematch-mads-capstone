@@ -2,17 +2,11 @@
 
 How to read the files in `data/raw/polyvore_outfits/`, once sourced. Same
 precedent as `deepfashion_schema.md`: use the real, standard dataset
-release format rather than inventing our own. Verified against the
-companion code to Vasileva et al. (2018), "Learning Type-Aware Embeddings
-for Fashion Compatibility" — https://github.com/mvasil/fashion-compatibility
-(`polyvore_outfits.py`), not quoted from memory. Two structural details
-noted below are still open (flagged explicitly) pending the actual
-downloaded files.
+release format rather than inventing our own.
 
 We use the **nondisjoint** split (`polyvore_outfits/nondisjoint/`, not
 `disjoint/`) — items can repeat across train/valid/test, but this is the
-split Vasileva et al.'s cited numbers (AUC=0.86, FITB=55.3%, see
-`reports/figures/05_compatibility_engine_metrics_mockup.png`) are reported
+split Vasileva et al.'s cited numbers (AUC=0.86, FITB=55.3%) are reported
 on, so our results stay directly comparable without a split mismatch.
 
 ## Directory layout
