@@ -2,7 +2,7 @@
 
 Gated dataset on Hugging Face, requires requesting access first:
 https://huggingface.co/datasets/mvasil/polyvore-outfits
-Once approved, authenticate locally (`huggingface-cli login`, or set an
+Once approved, authenticate locally (`hf auth login`, or set an
 HF_TOKEN env var) before running this script.
 
 See references/polyvore_outfits_schema.md for what's inside these files.
@@ -14,9 +14,7 @@ DeepFashion's were -- they're embedded inside parquet shards:
      plus the raw parquet shards holding the images.
   2. `extract-images`: reads those shards and writes out
      images/<item_id>.jpg, reconstructing the loose-file layout our
-     dataset interface expects. Column names are discovered at runtime,
-     not hardcoded on faith -- confirming the real schema needs
-     authenticated access we don't have ahead of time.
+     dataset interface expects.
 
 One-off setup utility, not imported by any training code. Run directly,
 or via `make data-compatibility`.
@@ -33,10 +31,6 @@ app = typer.Typer()
 
 REPO_ID = "mvasil/polyvore-outfits"
 
-# Raw annotation files + the parquet shards holding the actual images,
-# nothing else (skips maryland_polyvore_hardneg/ and disjoint/, which we
-# don't use -- see references/polyvore_outfits_schema.md for why
-# nondisjoint).
 ALLOW_PATTERNS = [
     "polyvore_item_metadata.json",
     "nondisjoint/train.json",

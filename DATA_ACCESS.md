@@ -83,8 +83,8 @@ vocabulary, encoding, the train/val/test split), see
   purposes." Treated as academic-use-only; no redistribution.
 - **Access method:** request access at the Hugging Face link above
   (institutional email required). Status: **approved**. Authenticate
-  locally (`huggingface-cli login`, or an `HF_TOKEN` env var) before
-  running the download script below.
+  locally (`hf auth login`, or an `HF_TOKEN` env var) before running
+  the download script below.
 
 ### Download
 
