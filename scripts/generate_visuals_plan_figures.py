@@ -257,14 +257,22 @@ def figure_4_compatibility_engine_mockup() -> None:
         fig,
         eyebrow="Figure 4 (planned) — compatibility score, true vs. random pairs",
         headline="PLANNED: real outfit pairs should score higher than random pairs",
-        eyebrow_y=0.96, headline_y=0.9,
+        eyebrow_y=0.96, headline_y=0.88,
     )
+    # Hard-wrapped, not wrap=True: fig.text's auto-wrap doesn't size
+    # correctly against this figure's actual canvas width (same issue
+    # fixed this way in figures 2 and 5). va="top" explicitly: this
+    # text's default vertical alignment didn't anchor the way plain
+    # top-down line flow would suggest, overlapping the headline above
+    # it -- va="top" makes the given y unambiguously the top of the
+    # block, removing that guesswork.
     fig.text(
-        0.02, 0.845,
-        "What this compares, once built: the compatibility score for items actually worn together in a real "
-        "outfit vs. items paired at random — to check the model tells coordinated outfits apart from mismatched "
-        "ones. Illustrative, not real data.",
-        fontsize=8.5, color="#444444", ha="left", wrap=True,
+        0.02, 0.78,
+        "What this compares, once built: the compatibility score for items actually\n"
+        "worn together in a real outfit vs. items paired at random — to check the\n"
+        "model tells coordinated outfits apart from mismatched ones. Illustrative,\n"
+        "not real data.",
+        fontsize=8.5, color="#444444", ha="left", va="top",
     )
     fig.text(
         0.5, 0.45, "ILLUSTRATIVE — MOCKUP\nNOT REAL DATA",
@@ -273,11 +281,12 @@ def figure_4_compatibility_engine_mockup() -> None:
     )
     fig.text(
         0.02, 0.01,
-        "Figure 4 (planned). Compatibility engine not yet built. This sketches the intended figure once it "
-        "exists: a compatibility-score histogram for true vs. random outfit pairs. Numbers shown are fabricated.",
+        "Figure 4 (planned). Compatibility engine not yet built. This sketches the\n"
+        "intended figure once it exists: a compatibility-score histogram for true vs.\n"
+        "random outfit pairs. Numbers shown are fabricated.",
         fontsize=8, color="#555555",
     )
-    fig.tight_layout(rect=(0, 0.06, 1, 0.78))
+    fig.tight_layout(rect=(0, 0.1, 1, 0.65))
     fig.savefig(FIGURES_DIR / "04_compatibility_engine_mockup.png", bbox_inches="tight")
     plt.close(fig)
 
