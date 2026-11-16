@@ -34,7 +34,7 @@ from stylematch.similarity.dataset import DeepFashionCAPDataset
 plt.rcParams.update(
     {
         "figure.dpi": 150,
-        "savefig.dpi": 150,
+        "savefig.dpi": 300,  # sharper after Google Docs/Word's inevitable shrink-to-page-width
         "font.size": 10,
         "axes.spines.top": False,
         "axes.spines.right": False,
@@ -296,7 +296,11 @@ def figure_5_compatibility_engine_metrics_mockup() -> None:
     VASILEVA_AUC = 0.86
     CITED = "#8a6d3b"  # distinct from NEUTRAL/ACCENT: this bar's value is a real citation, not fabricated
 
-    fig, (ax_fitb, ax_roc) = plt.subplots(1, 2, figsize=(11, 5))
+    # Stacked vertically (not side-by-side) and narrow enough (6.5in) to
+    # fit a portrait page/doc without shrinking -- the original 11in-wide
+    # side-by-side layout had to shrink by ~40% to fit a standard page,
+    # which hit this figure's already-small text hardest.
+    fig, (ax_fitb, ax_roc) = plt.subplots(2, 1, figsize=(6.5, 10.5))
 
     # Panel A: FITB accuracy — random guess, the real Vasileva et al.
     # published number (for scale/context), and our fabricated
@@ -342,19 +346,25 @@ def figure_5_compatibility_engine_metrics_mockup() -> None:
     add_header(
         fig,
         eyebrow="Figure 5 (planned) — compatibility engine evaluation metrics",
-        headline="PLANNED: fill-in-the-blank accuracy and ROC-AUC, the standard outfit-\n"
-        "compatibility metrics (Vasileva et al.) — illustrative, not a finished result",
-        eyebrow_y=0.97, headline_y=0.885,
+        headline="PLANNED: fill-in-the-blank accuracy and ROC-AUC, the standard\n"
+        "outfit-compatibility metrics (Vasileva et al.) — illustrative,\n"
+        "not a finished result",
+        eyebrow_y=0.985, headline_y=0.92,
     )
+    # Hard-wrapped, not wrap=True: fig.text's auto-wrap doesn't size
+    # correctly against this figure's narrower width (same issue hit
+    # and fixed this way in figure 2's caveat text earlier).
     fig.text(
-        0.02, 0.01,
-        "Figure 5 (planned). Compatibility engine not yet built. FITB = pick the correct missing item from "
-        "4 candidates (random guess = 25%); ROC-AUC = compatible-vs-incompatible pair classification. Vasileva "
-        "et al. 2018 (Polyvore Outfits, nondisjoint split) is a real published number, included for scale; "
-        "\"ours\" is a fabricated placeholder. Marked illustrative throughout since the engine itself isn't built.",
+        0.02, 0.025,
+        "Figure 5 (planned). Compatibility engine not yet built. FITB = pick the\n"
+        "correct missing item from 4 candidates (random guess = 25%); ROC-AUC =\n"
+        "compatible-vs-incompatible pair classification. Vasileva et al. 2018\n"
+        "(Polyvore Outfits, nondisjoint split) is a real published number, included\n"
+        "for scale; \"ours\" is a fabricated placeholder. Marked illustrative\n"
+        "throughout since the engine itself isn't built.",
         fontsize=8, color="#555555",
     )
-    fig.tight_layout(rect=(0, 0.06, 1, 0.78))
+    fig.tight_layout(rect=(0, 0.12, 1, 0.84))
     fig.savefig(FIGURES_DIR / "05_compatibility_engine_metrics_mockup.png", bbox_inches="tight")
     plt.close(fig)
 
