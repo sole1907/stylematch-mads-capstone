@@ -23,6 +23,7 @@ polyvore_outfits/
     compatibility_train.txt
     compatibility_valid.txt
     compatibility_test.txt
+    fill_in_blank_train.json
     fill_in_blank_valid.json
     fill_in_blank_test.json
 ```
@@ -58,13 +59,25 @@ A list of outfit dicts:
 
 Space-separated, one line per question: `label item_1 item_2 ...
 item_n`. **`label`**: `1` = compatible (a real outfit), `0` = incompatible
-(a generated negative).
+(a generated negative). Each `item_*` is a **composite `<set_id>_<index>`
+reference** (e.g. `224930161_1`), not a raw `item_id` — resolve by looking
+up `set_id` in `{train,valid,test}.json` and matching `index` to get the
+real `item_id`, then `images/<item_id>.jpg`.
 
 ## `fill_in_blank_{valid,test}.json`: the FITB eval task
 
-A list of question dicts, each with a **`question`** list (the outfit's
-items minus one, i.e. the context) and an **`answers`** list (candidates
-to fill the blank — 4-way per the paper).
+A list of question dicts:
+
+```json
+{"question": ["224930161_1", "224930161_2", "224930161_3"], "blank_position": 4, "answers": ["224930161_4", "224074548_4", "221302591_4", "225336338_5"]}
+```
+
+- **`question`**: the outfit's items minus the blank one, same composite
+  `<set_id>_<index>` references as above.
+- **`blank_position`**: the index that was removed.
+- **`answers`**: 4 candidates to fill the blank. **`answers[0]` is always
+  the correct one** — same `set_id` as `question`, at `blank_position`.
+  The other 3 are distractors from unrelated outfits.
 
 ## Our dataset interface, independent of the above
 
