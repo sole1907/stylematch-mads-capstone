@@ -259,13 +259,6 @@ def figure_4_compatibility_engine_mockup() -> None:
         headline="PLANNED: real outfit pairs should score higher than random pairs",
         eyebrow_y=0.96, headline_y=0.88,
     )
-    # Hard-wrapped, not wrap=True: fig.text's auto-wrap doesn't size
-    # correctly against this figure's actual canvas width (same issue
-    # fixed this way in figures 2 and 5). va="top" explicitly: this
-    # text's default vertical alignment didn't anchor the way plain
-    # top-down line flow would suggest, overlapping the headline above
-    # it -- va="top" makes the given y unambiguously the top of the
-    # block, removing that guesswork.
     fig.text(
         0.02, 0.78,
         "What this compares, once built: the compatibility score for items actually\n"
@@ -360,9 +353,6 @@ def figure_5_compatibility_engine_metrics_mockup() -> None:
         "not a finished result",
         eyebrow_y=0.985, headline_y=0.92,
     )
-    # Hard-wrapped, not wrap=True: fig.text's auto-wrap doesn't size
-    # correctly against this figure's narrower width (same issue hit
-    # and fixed this way in figure 2's caveat text earlier).
     fig.text(
         0.02, 0.025,
         "Figure 5 (planned). Compatibility engine not yet built. FITB = pick the\n"
