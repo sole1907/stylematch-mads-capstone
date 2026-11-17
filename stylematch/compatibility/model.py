@@ -5,13 +5,9 @@ compatibility between items is then a function of their embeddings'
 pairwise similarity, not a separate learned "outfit" representation.
 
 Independent from SimilarityModel for now (own backbone instance, own
-weights). Week 4's "optional chaining" (reusing SimilarityModel's
-trained embeddings instead) is a later comparison experiment, once
-both engines have final checkpoints (Week 5) -- not attempted here:
-DeepFashion's single-garment photos and Polyvore's outfit photos are
-different enough visual domains that a similarity-tuned embedding
-isn't assumed to transfer, so starting independent keeps that
-comparison meaningful later rather than assuming the answer now.
+weights). "Optional chaining" (reusing SimilarityModel's trained
+embeddings instead) is a later comparison experiment, once both
+engines have final checkpoints.
 """
 
 import open_clip
@@ -65,9 +61,7 @@ class CompatibilityModel(nn.Module):
         )
 
     def _apply_freeze(self, freeze_until_block: int) -> None:
-        """Same freeze strategy as SimilarityModel -- see its
-        docstring (dev-notes/architecture-decision.md has the full
-        reasoning, not repeated here)."""
+        """Same freeze strategy as SimilarityModel."""
         for param in self.backbone.parameters():
             param.requires_grad = False
         for block in self.backbone.transformer.resblocks[freeze_until_block:]:
