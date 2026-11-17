@@ -34,7 +34,7 @@ from stylematch.similarity.dataset import DeepFashionCAPDataset
 plt.rcParams.update(
     {
         "figure.dpi": 150,
-        "savefig.dpi": 150,
+        "savefig.dpi": 300,  # sharper after Google Docs/Word's inevitable shrink-to-page-width
         "font.size": 10,
         "axes.spines.top": False,
         "axes.spines.right": False,
@@ -257,14 +257,15 @@ def figure_4_compatibility_engine_mockup() -> None:
         fig,
         eyebrow="Figure 4 (planned) — compatibility score, true vs. random pairs",
         headline="PLANNED: real outfit pairs should score higher than random pairs",
-        eyebrow_y=0.96, headline_y=0.9,
+        eyebrow_y=0.96, headline_y=0.88,
     )
     fig.text(
-        0.02, 0.845,
-        "What this compares, once built: the compatibility score for items actually worn together in a real "
-        "outfit vs. items paired at random — to check the model tells coordinated outfits apart from mismatched "
-        "ones. Illustrative, not real data.",
-        fontsize=8.5, color="#444444", ha="left", wrap=True,
+        0.02, 0.78,
+        "What this compares, once built: the compatibility score for items actually\n"
+        "worn together in a real outfit vs. items paired at random — to check the\n"
+        "model tells coordinated outfits apart from mismatched ones. Illustrative,\n"
+        "not real data.",
+        fontsize=8.5, color="#444444", ha="left", va="top",
     )
     fig.text(
         0.5, 0.45, "ILLUSTRATIVE — MOCKUP\nNOT REAL DATA",
@@ -273,11 +274,12 @@ def figure_4_compatibility_engine_mockup() -> None:
     )
     fig.text(
         0.02, 0.01,
-        "Figure 4 (planned). Compatibility engine not yet built. This sketches the intended figure once it "
-        "exists: a compatibility-score histogram for true vs. random outfit pairs. Numbers shown are fabricated.",
+        "Figure 4 (planned). Compatibility engine not yet built. This sketches the\n"
+        "intended figure once it exists: a compatibility-score histogram for true vs.\n"
+        "random outfit pairs. Numbers shown are fabricated.",
         fontsize=8, color="#555555",
     )
-    fig.tight_layout(rect=(0, 0.06, 1, 0.78))
+    fig.tight_layout(rect=(0, 0.1, 1, 0.65))
     fig.savefig(FIGURES_DIR / "04_compatibility_engine_mockup.png", bbox_inches="tight")
     plt.close(fig)
 
@@ -296,7 +298,11 @@ def figure_5_compatibility_engine_metrics_mockup() -> None:
     VASILEVA_AUC = 0.86
     CITED = "#8a6d3b"  # distinct from NEUTRAL/ACCENT: this bar's value is a real citation, not fabricated
 
-    fig, (ax_fitb, ax_roc) = plt.subplots(1, 2, figsize=(11, 5))
+    # Stacked vertically (not side-by-side) and narrow enough (6.5in) to
+    # fit a portrait page/doc without shrinking -- the original 11in-wide
+    # side-by-side layout had to shrink by ~40% to fit a standard page,
+    # which hit this figure's already-small text hardest.
+    fig, (ax_fitb, ax_roc) = plt.subplots(2, 1, figsize=(6.5, 10.5))
 
     # Panel A: FITB accuracy — random guess, the real Vasileva et al.
     # published number (for scale/context), and our fabricated
@@ -342,19 +348,22 @@ def figure_5_compatibility_engine_metrics_mockup() -> None:
     add_header(
         fig,
         eyebrow="Figure 5 (planned) — compatibility engine evaluation metrics",
-        headline="PLANNED: fill-in-the-blank accuracy and ROC-AUC, the standard outfit-\n"
-        "compatibility metrics (Vasileva et al.) — illustrative, not a finished result",
-        eyebrow_y=0.97, headline_y=0.885,
+        headline="PLANNED: fill-in-the-blank accuracy and ROC-AUC, the standard\n"
+        "outfit-compatibility metrics (Vasileva et al.) — illustrative,\n"
+        "not a finished result",
+        eyebrow_y=0.985, headline_y=0.92,
     )
     fig.text(
-        0.02, 0.01,
-        "Figure 5 (planned). Compatibility engine not yet built. FITB = pick the correct missing item from "
-        "4 candidates (random guess = 25%); ROC-AUC = compatible-vs-incompatible pair classification. Vasileva "
-        "et al. 2018 (Polyvore Outfits, nondisjoint split) is a real published number, included for scale; "
-        "\"ours\" is a fabricated placeholder. Marked illustrative throughout since the engine itself isn't built.",
+        0.02, 0.025,
+        "Figure 5 (planned). Compatibility engine not yet built. FITB = pick the\n"
+        "correct missing item from 4 candidates (random guess = 25%); ROC-AUC =\n"
+        "compatible-vs-incompatible pair classification. Vasileva et al. 2018\n"
+        "(Polyvore Outfits, nondisjoint split) is a real published number, included\n"
+        "for scale; \"ours\" is a fabricated placeholder. Marked illustrative\n"
+        "throughout since the engine itself isn't built.",
         fontsize=8, color="#555555",
     )
-    fig.tight_layout(rect=(0, 0.06, 1, 0.78))
+    fig.tight_layout(rect=(0, 0.12, 1, 0.84))
     fig.savefig(FIGURES_DIR / "05_compatibility_engine_metrics_mockup.png", bbox_inches="tight")
     plt.close(fig)
 
