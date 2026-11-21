@@ -114,7 +114,7 @@ def run_training_loop(
             data_iter = iter(loader)
             batch = next(data_iter)
 
-        step_loss = torch.tensor(0.0)
+        step_loss = torch.tensor(0.0, device=model.device)
         for i, (item_images, _item_ids, _category_labels, _outfit_id) in enumerate(batch):
             real_embeddings = model(torch.stack(item_images))
             real_score = model.score_outfit(real_embeddings)
@@ -123,7 +123,7 @@ def run_training_loop(
             fake_embeddings = model(torch.stack(fake_images))
             fake_score = model.score_outfit(fake_embeddings)
 
-            target = torch.ones(1)
+            target = torch.ones(1, device=model.device)
             step_loss = step_loss + F.margin_ranking_loss(
                 real_score.unsqueeze(0), fake_score.unsqueeze(0), target, margin=margin
             )
