@@ -22,7 +22,7 @@ or via `make data-compatibility`.
 
 from huggingface_hub import snapshot_download
 from loguru import logger
-import pandas as pd
+import pyarrow.parquet as pq
 import typer
 
 from stylematch.config import POLYVORE_DIR
@@ -60,9 +60,15 @@ def download():
 
 
 @app.command()
-def extract_images():
+def extract_images(batch_size: int = 256):
     """Reads the downloaded parquet shards and writes out
     images/<item_id>.jpg, one file per unique item.
+
+    Reads each shard in row-group batches via pyarrow rather than
+    loading it whole into one DataFrame -- a single shard's image
+    bytes can be large enough (over 1GB on disk for this dataset) to
+    get OOM-killed on a memory-capped node, e.g. an HPC login node
+    shared across many interactive users.
 
     Prints the first shard's actual columns before attempting
     extraction. If ITEM_ID_COLUMN/IMAGE_COLUMN below don't match what's
@@ -74,11 +80,11 @@ def extract_images():
         logger.error(f"No parquet files found in {parquet_dir}. Run `download` first.")
         raise typer.Exit(1)
 
-    first = pd.read_parquet(shards[0])
-    logger.info(f"First shard's columns: {list(first.columns)}")
+    first_columns = pq.ParquetFile(shards[0]).schema_arrow.names
+    logger.info(f"First shard's columns: {first_columns}")
 
-    item_id_column = "item_id" if "item_id" in first.columns else None
-    image_column = "image" if "image" in first.columns else None
+    item_id_column = "item_id" if "item_id" in first_columns else None
+    image_column = "image" if "image" in first_columns else None
     if item_id_column is None or image_column is None:
         logger.error(
             "Expected columns 'item_id' and 'image' weren't both found above. "
@@ -93,19 +99,26 @@ def extract_images():
     written = 0
     skipped = 0
     for shard in shards:
-        df = pd.read_parquet(shard)
-        for _, row in df.iterrows():
-            out_path = images_dir / f"{row[item_id_column]}.jpg"
-            if out_path.exists():
-                skipped += 1
-                continue
-            image_bytes = row[image_column]
-            # HF image columns are commonly a dict ({"bytes": ..., "path":
-            # ...}) rather than raw bytes directly -- handle both.
-            if isinstance(image_bytes, dict):
-                image_bytes = image_bytes.get("bytes")
-            out_path.write_bytes(image_bytes)
-            written += 1
+        shard_written = 0
+        parquet_file = pq.ParquetFile(shard)
+        for batch in parquet_file.iter_batches(
+            batch_size=batch_size, columns=[item_id_column, image_column]
+        ):
+            item_ids = batch.column(item_id_column).to_pylist()
+            images = batch.column(image_column).to_pylist()
+            for item_id, image_bytes in zip(item_ids, images):
+                out_path = images_dir / f"{item_id}.jpg"
+                if out_path.exists():
+                    skipped += 1
+                    continue
+                # HF image columns are commonly a dict ({"bytes": ..., "path":
+                # ...}) rather than raw bytes directly -- handle both.
+                if isinstance(image_bytes, dict):
+                    image_bytes = image_bytes.get("bytes")
+                out_path.write_bytes(image_bytes)
+                written += 1
+                shard_written += 1
+        logger.info(f"{shard.name}: {shard_written} images written")
 
     logger.success(f"Done. {written} images written, {skipped} already existed.")
 
