@@ -21,8 +21,8 @@ BACKBONE_OUTPUT_DIM = 512  # confirmed via smoke test (tests/test_marqo_backbone
 class CompatibilityModel(nn.Module):
     """Marqo-FashionCLIP's visual tower (partially frozen) + a new,
     separately-trained projection head, producing one L2-normalized
-    embedding per item. Same architecture shape as SimilarityModel, own
-    instance and weights -- see module docstring for why independent.
+    embedding per item, its own independent instance and weights --
+    see module docstring for why independent.
 
     Compatibility between items is the mean pairwise cosine similarity
     across every distinct pair in a candidate outfit (this project's
@@ -39,8 +39,8 @@ class CompatibilityModel(nn.Module):
             freeze_until_block: transformer blocks before this index
                 stay frozen; this index onward (plus the final norm
                 and the backbone's own projection) are fine-tuned.
-                Same meaning and valid range (0-12) as
-                SimilarityModel's.
+                Valid range: 0-12 (0 = nothing frozen, 12 = entire
+                backbone frozen).
         """
         super().__init__()
         if not 0 <= freeze_until_block <= 12:
@@ -61,7 +61,9 @@ class CompatibilityModel(nn.Module):
         )
 
     def _apply_freeze(self, freeze_until_block: int) -> None:
-        """Same freeze strategy as SimilarityModel."""
+        """Freezes the whole backbone, then unfreezes from
+        freeze_until_block onward: the later transformer blocks, the
+        final norm, and the backbone's own projection."""
         for param in self.backbone.parameters():
             param.requires_grad = False
         for block in self.backbone.transformer.resblocks[freeze_until_block:]:

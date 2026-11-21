@@ -63,8 +63,7 @@ def build_grid(
 
 
 def _find_matching_row(config: TrainingConfig, existing_results: pd.DataFrame) -> dict | None:
-    """Same resume-detection logic as the similarity engine's sweep:
-    compares against each field's actual type on the live config
+    """Compares against each field's actual type on the live config
     object, floats get a tolerance, ints/others need exact equality.
     Returns the matching row as a dict, or None if no match exists.
     """
@@ -91,9 +90,9 @@ def run_sweep(
     """Runs training + before/after FITB accuracy + AUC for each
     config in turn.
 
-    Resumable: same mechanics as the similarity engine's run_sweep --
-    if `results_path` already has results from a previous run, a
-    config with a matching saved result is reused instead of retrained.
+    Resumable: if `results_path` already has results from a previous
+    run, a config with a matching saved result is reused instead of
+    retrained.
 
     Args:
         configs: the hyperparameter combinations to try.
@@ -199,11 +198,11 @@ def run_staged_search(
     max_fitb_questions: int | None = None,
     max_compat_outfits: int | None = None,
 ) -> tuple[TrainingConfig, pd.DataFrame]:
-    """Same mechanics as the similarity engine's run_staged_search:
-    each stage varies only the parameter(s) named in that stage's
-    dict, holding everything else at the best config found by the
-    *previous* stage, then that stage's winner (by auc_improvement,
-    not fitb_improvement, see module docstring) gets carried forward
+    """Runs a sequence of small sweeps: each stage varies only the
+    parameter(s) named in that stage's dict, holding everything else
+    at the best config found by the *previous* stage, then that
+    stage's winner (by auc_improvement, not fitb_improvement, see
+    module docstring) gets carried forward
     automatically.
 
     Args:

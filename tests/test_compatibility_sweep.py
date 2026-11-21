@@ -116,10 +116,9 @@ def test_run_staged_search_carries_winner_forward(tmp_path):
     assert set(summary["stage"]) == {1, 2}
     assert best_config.freeze_until_block in (6, 8)
     assert best_config.margin in (0.1, 0.3)
-    # Regression check, same one the similarity engine's sweep guards
-    # against: carrying a winner forward once went through a pandas
-    # row (a Series, single dtype), which silently upcast ints to
-    # floats. Pinning the type here, not just the value.
+    # Regression guard: carrying a winner forward goes through a
+    # pandas row (a Series, single dtype), which can silently upcast
+    # ints to floats. Pinning the type here, not just the value.
     assert type(best_config.freeze_until_block) is int
     assert best_config.num_steps == base.num_steps
     assert best_config.outfits_per_batch == base.outfits_per_batch
