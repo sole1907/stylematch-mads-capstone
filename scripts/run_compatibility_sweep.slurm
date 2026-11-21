@@ -5,16 +5,6 @@
 # way). No eval cap: every config evaluates the full 5,000 FITB
 # questions / 10,000 compatibility outfits.
 #
-# --time is capped at 08:00:00 because that's siads699f26_class's real
-# per-job wall-time ceiling (confirmed via `sacctmgr show assoc`, not
-# assumed) -- requesting more gets the job rejected outright with
-# AssocMaxWallDurationPerJobLimit before it ever queues. A real timed
-# check showed the full sweep won't finish in one 8-hour job either, so
-# this relies on sweep.py's resume-from-CSV behavior across however
-# many resubmissions it takes. If a job times out, just resubmit the
-# same script again; already-completed configs are reused from
-# reports/compatibility_staged_search_stage_*.csv, not redone.
-#
 # One-time setup BEFORE first use (venv/dependencies are OS-specific,
 # the repo lives in /home so results persist reliably):
 #   1. Get the repo onto Great Lakes: git clone <repo-url>, or git pull
