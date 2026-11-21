@@ -31,7 +31,12 @@ class CompatibilityModel(nn.Module):
     later refinement, not attempted in this skeleton).
     """
 
-    def __init__(self, embedding_dim: int = 256, freeze_until_block: int = 8) -> None:
+    def __init__(
+        self,
+        embedding_dim: int = 256,
+        freeze_until_block: int = 8,
+        device: torch.device | str | None = None,
+    ) -> None:
         """
         Args:
             embedding_dim: dimensionality of the final compatibility
@@ -41,10 +46,17 @@ class CompatibilityModel(nn.Module):
                 and the backbone's own projection) are fine-tuned.
                 Valid range: 0-12 (0 = nothing frozen, 12 = entire
                 backbone frozen).
+            device: where to put the model. None (default) picks CUDA
+                if available, else CPU -- pass an explicit value to
+                override that.
         """
         super().__init__()
         if not 0 <= freeze_until_block <= 12:
             raise ValueError(f"freeze_until_block must be 0-12, got {freeze_until_block}")
+
+        self.device = torch.device(device) if device is not None else torch.device(
+            "cuda" if torch.cuda.is_available() else "cpu"
+        )
 
         backbone, preprocess_train, preprocess_val = open_clip.create_model_and_transforms(
             BACKBONE_NAME
@@ -59,6 +71,7 @@ class CompatibilityModel(nn.Module):
             nn.ReLU(),
             nn.Linear(512, embedding_dim),
         )
+        self.to(self.device)
 
     def _apply_freeze(self, freeze_until_block: int) -> None:
         """Freezes the whole backbone, then unfreezes from
@@ -87,6 +100,7 @@ class CompatibilityModel(nn.Module):
             a set of these into one compatibility score is
             score_outfit's job, not forward's.
         """
+        images = images.to(self.device)
         backbone_embedding = self.backbone(images)
         embedding = self.projection_head(backbone_embedding)
         return nn.functional.normalize(embedding, dim=-1)
