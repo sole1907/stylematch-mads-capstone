@@ -303,13 +303,22 @@ def run_staged_search_lite(
 
 
 if __name__ == "__main__":
+    # margin's lower values are scaled to a real check: an untrained
+    # model's score_outfit() on a 40-outfit sample clustered real and
+    # fake outfits both in roughly a 0.45-0.73 band, a ~0.27 spread --
+    # a margin of 0.5 would demand near-maximal separation, likely
+    # unachievable for same-domain fashion photos. Extended up to 0.5
+    # anyway (0.25, 0.3, 0.4, 0.5 added) to hedge against that check's
+    # real limitations: a small, non-random sample, and an untrained
+    # snapshot that doesn't capture how far training could widen the
+    # gap.
     best_config, summary = run_staged_search(
         stages=[
             {
                 "learning_rate": [1e-3, 1e-4, 1e-5, 1e-6],
                 "freeze_until_block": [2, 4, 6, 8, 10, 12],
             },
-            {"margin": [0.05, 0.1, 0.15, 0.2, 0.3, 0.5]},
+            {"margin": [0.02, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.4, 0.5]},
             {"num_steps": [30, 60, 100, 200, 500]},
         ],
         base_config=TrainingConfig(),
