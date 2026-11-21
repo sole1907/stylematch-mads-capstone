@@ -3,16 +3,20 @@
 # Lakes batch job (learning_rate x freeze_until_block jointly, then
 # margin, then num_steps -- see sweep.py's __main__ for why staged this
 # way). No eval cap: every config evaluates the full 5,000 FITB
-# questions / 10,000 compatibility outfits. A real timed check showed
-# this likely won't finish within one 24-hour job -- deliberate,
-# relying on sweep.py's resume-from-CSV behavior. If this job times
-# out, just resubmit the same script again; already-completed configs
-# are reused from reports/compatibility_staged_search_stage_*.csv, not
-# redone.
+# questions / 10,000 compatibility outfits.
+#
+# --time is capped at 08:00:00 because that's siads699f26_class's real
+# per-job wall-time ceiling (confirmed via `sacctmgr show assoc`, not
+# assumed) -- requesting more gets the job rejected outright with
+# AssocMaxWallDurationPerJobLimit before it ever queues. A real timed
+# check showed the full sweep won't finish in one 8-hour job either, so
+# this relies on sweep.py's resume-from-CSV behavior across however
+# many resubmissions it takes. If a job times out, just resubmit the
+# same script again; already-completed configs are reused from
+# reports/compatibility_staged_search_stage_*.csv, not redone.
 #
 # One-time setup BEFORE first use (venv/dependencies are OS-specific,
-# the repo lives in /home so results persist reliably, the actual
-# Polyvore images live on /scratch instead, see step 5):
+# the repo lives in /home so results persist reliably):
 #   1. Get the repo onto Great Lakes: git clone <repo-url>, or git pull
 #      if already cloned there. Clone it into /home (e.g.
 #      /home/$USER/stylematch-mads-capstone), not /scratch.
@@ -21,11 +25,10 @@
 #      (confirmed: /sw/pkgs/arc/mamba/py3.12, Python 3.12.0).
 #   3. python3 -m venv venv && source venv/bin/activate
 #   4. pip install -r requirements.txt
-#   5. Make sure the real Polyvore Outfits data is on /scratch (copy it
-#      there if it's only ever existed locally), then create a .env
-#      file in the repo root (never committed, already gitignored)
-#      pointing POLYVORE_DIR at it, e.g.:
-#        echo "POLYVORE_DIR=/scratch/<slurm_account>_root/polyvore_outfits" > .env
+#   5. Make sure the real Polyvore Outfits data is downloaded (see
+#      scripts/download_polyvore.py) -- POLYVORE_DIR defaults to
+#      data/raw/polyvore_outfits under the repo root with no .env
+#      override, which is where this runs from by default.
 #
 # Submit:   sbatch scripts/run_compatibility_sweep.slurm
 # Monitor:  squeue -u $USER
@@ -42,7 +45,7 @@
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=48G
-#SBATCH --time=24:00:00
+#SBATCH --time=08:00:00
 #SBATCH --output=reports/compatibility_sweep_full_%j.out
 #SBATCH --error=reports/compatibility_sweep_full_%j.err
 
