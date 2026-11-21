@@ -306,12 +306,6 @@ if __name__ == "__main__":
     # margin's values are scaled to a real check: an untrained model's
     # score_outfit() on a 40-outfit sample clustered real and fake
     # outfits both in roughly a 0.45-0.73 band, a ~0.27 spread.
-    # Extended a bit past that (0.25, 0.3) to hedge against that
-    # check's real limitations (a small, non-random sample; an
-    # untrained snapshot that doesn't capture how far training could
-    # widen the gap), but not pushed as far as 0.5, which would demand
-    # near-maximal separation, likely unachievable for same-domain
-    # fashion photos.
     best_config, summary = run_staged_search(
         stages=[
             {
