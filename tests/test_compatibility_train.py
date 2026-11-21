@@ -21,10 +21,9 @@ def test_runs_end_to_end_and_loss_changes():
     assert isinstance(model, CompatibilityModel)
     assert len(losses) == 3
     assert all(isinstance(loss, float) for loss in losses)
-    # Same check as the similarity engine's own training test: not
-    # claiming the loss meaningfully decreases over 3 steps, just that
-    # gradients are actually flowing (successive losses shouldn't be
-    # frozen at an identical value).
+    # Not claiming the loss meaningfully decreases over 3 steps, just
+    # that gradients are actually flowing (successive losses shouldn't
+    # be frozen at an identical value).
     assert len(set(losses)) > 1
 
 

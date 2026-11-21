@@ -131,8 +131,9 @@ def run_training_loop(
 
         optimizer.zero_grad()
         loss.backward()
-        # Total gradient norm across every trainable parameter, same
-        # convention as the similarity engine's train.py.
+        # Total gradient norm across every trainable parameter, not one
+        # hardcoded layer, since there's no single ".weight" that
+        # stands in for "the model."
         grad_norm = torch.sqrt(
             sum(p.grad.norm() ** 2 for p in trainable_params if p.grad is not None)
         ).item()

@@ -3,7 +3,7 @@ freeze strategy, and score_outfit's pairwise-similarity aggregation.
 Uses synthetic image tensors, not real Polyvore samples, since these
 tests check the model's own architecture/scoring logic in isolation,
 not the data pipeline. Downloads Marqo-FashionCLIP's pretrained weights
-on first run (cached locally afterward, same as SimilarityModel's).
+on first run, cached locally afterward.
 """
 
 import pytest
@@ -26,9 +26,9 @@ def test_forward_pass_shape_and_normalization():
 
 
 def test_freeze_strategy_freezes_correct_blocks():
-    """Same check as SimilarityModel's own test: blocks before
-    freeze_until_block must be frozen, from it onward trainable --
-    confirms the intent, not just internal gradient consistency."""
+    """Checks the actual intent, not just internal gradient
+    consistency: blocks before freeze_until_block must be frozen,
+    from it onward trainable."""
     model = CompatibilityModel(freeze_until_block=8)
 
     frozen_blocks = model.backbone.transformer.resblocks[:8]

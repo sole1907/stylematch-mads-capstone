@@ -168,10 +168,9 @@ class FITBDataset(Dataset):
 
     Interface contract: one FITB question per `__getitem__` call —
     the outfit's context items plus 4 answer candidates, exactly one
-    of which is correct. Separate from `PolyvoreOutfitDataset` for the
-    same reason `evaluate.py`'s retrieval evaluation is separate from
-    the similarity engine's training dataset: this is a fixed,
-    official eval set, not something a training sampler reshapes.
+    of which is correct. Separate from `PolyvoreOutfitDataset`: this
+    is a fixed, official eval set, not something a training sampler
+    reshapes.
     """
 
     def __init__(
