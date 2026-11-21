@@ -1,9 +1,5 @@
 """Evaluation for the compatibility engine: FITB accuracy and
-compatibility AUC, the same two metrics Vasileva et al. report (see
-references/polyvore_outfits_schema.md and
-reports/figures/05_compatibility_engine_metrics_mockup.png's
-illustrative placeholders), so real numbers from here stay directly
-comparable to that citation.
+compatibility AUC, the same two metrics Vasileva et al. report.
 """
 
 import torch
