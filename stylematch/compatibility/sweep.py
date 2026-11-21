@@ -312,6 +312,14 @@ if __name__ == "__main__":
     # real limitations: a small, non-random sample, and an untrained
     # snapshot that doesn't capture how far training could widen the
     # gap.
+    # No eval cap: the full 5,000 FITB questions / 10,000 compatibility
+    # outfits, every config. A real timed check showed a single
+    # config's full before+after eval alone didn't finish in 20+
+    # minutes locally (CPU, not the GPU this actually runs on), so
+    # this almost certainly won't finish in one job -- deliberate,
+    # relying on run_sweep's resume-from-CSV behavior to pick up where
+    # a timed-out job left off across however many resubmissions it
+    # takes, rather than capping eval quality to fit one job.
     best_config, summary = run_staged_search(
         stages=[
             {
