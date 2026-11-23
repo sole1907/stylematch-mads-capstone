@@ -1,0 +1,4 @@
+stage,varied,learning_rate,freeze_until_block,auc_improvement,margin,num_steps
+1,"learning_rate, freeze_until_block",1e-05,10.0,0.03564272000000013,,
+2,margin,,,0.03770972000000006,0.15,
+3,num_steps,,,0.14931324,,500.0
