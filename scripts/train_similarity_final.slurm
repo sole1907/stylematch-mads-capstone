@@ -5,7 +5,10 @@
 #
 # Single run, num_steps=100 -- much smaller than the margin/num_steps
 # follow-up sweep (10 configs, up to 500 steps each) that ran in ~3
-# hours, so this should finish well within the hour requested.
+# hours, so this should finish in well under an hour. --time=08:00:00
+# is just the account's max per-job cap requested as a safety buffer,
+# not an estimate -- Slurm releases the allocation as soon as the job
+# actually finishes, so there's no cost to requesting more than needed.
 #
 # Same one-time setup as the other similarity SLURM scripts (repo
 # already cloned, venv already built, real DeepFashion data already on
@@ -22,7 +25,7 @@
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=48G
-#SBATCH --time=01:00:00
+#SBATCH --time=08:00:00
 #SBATCH --output=reports/similarity_final_training_%j.out
 #SBATCH --error=reports/similarity_final_training_%j.err
 

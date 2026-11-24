@@ -7,10 +7,7 @@ to sit at the edge of its tested range).
 
 Winning config: learning_rate=1e-5, freeze_until_block=10, margin=0.7,
 num_steps=100 (improvement +0.167 over an untrained baseline).
-num_categories=None (uncapped, every qualifying category) -- matching
-how the real sweep itself trained, not TrainingConfig's own default of
-20, which exists as a speed shortcut for comparing many configs
-quickly, not meant for final production training.
+num_categories=None (uncapped, every qualifying category).
 
 Saves a checkpoint (models/similarity_final.pt) for later use by the
 demo app and the official one-time test-set evaluation. Runs a
