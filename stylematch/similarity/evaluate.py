@@ -32,7 +32,12 @@ def compute_embeddings(
     all_category_labels = []
     all_attribute_labels = []
     for images, category_labels, attribute_labels in loader:
-        all_embeddings.append(model(images))
+        # Moved back to CPU right away: the forward pass is the only
+        # part that benefits from GPU, everything downstream (nearest-
+        # neighbor search, label comparisons) is cheap bookkeeping that
+        # would otherwise device-mismatch against labels, which never
+        # leave the CPU.
+        all_embeddings.append(model(images).cpu())
         all_category_labels.append(category_labels)
         all_attribute_labels.append(attribute_labels)
 

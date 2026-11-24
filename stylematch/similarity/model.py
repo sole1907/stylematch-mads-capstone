@@ -4,6 +4,7 @@ for garment-to-garment similarity.
 """
 
 import open_clip
+import torch
 from torch import nn, Tensor
 
 BACKBONE_NAME = "hf-hub:Marqo/marqo-fashionCLIP"
@@ -23,7 +24,12 @@ class SimilarityModel(nn.Module):
     treated as final.
     """
 
-    def __init__(self, embedding_dim: int = 256, freeze_until_block: int = 8) -> None:
+    def __init__(
+        self,
+        embedding_dim: int = 256,
+        freeze_until_block: int = 8,
+        device: torch.device | str | None = None,
+    ) -> None:
         """
         Args:
             embedding_dim: dimensionality of the final similarity embedding
@@ -32,10 +38,17 @@ class SimilarityModel(nn.Module):
                 frozen; this index onward (plus the final norm and the
                 backbone's own projection) are fine-tuned. Valid range:
                 0-12 (0 = nothing frozen, 12 = entire backbone frozen).
+            device: where to put the model. None (default) picks CUDA
+                if available, else CPU -- pass an explicit value to
+                override that.
         """
         super().__init__()
         if not 0 <= freeze_until_block <= 12:
             raise ValueError(f"freeze_until_block must be 0-12, got {freeze_until_block}")
+
+        self.device = torch.device(device) if device is not None else torch.device(
+            "cuda" if torch.cuda.is_available() else "cpu"
+        )
 
         backbone, preprocess_train, preprocess_val = open_clip.create_model_and_transforms(
             BACKBONE_NAME
@@ -53,6 +66,7 @@ class SimilarityModel(nn.Module):
             nn.ReLU(),
             nn.Linear(512, embedding_dim),
         )
+        self.to(self.device)
 
     def _apply_freeze(self, freeze_until_block: int) -> None:
         """Freezes the whole backbone, then unfreezes from `freeze_until_block`
@@ -78,6 +92,7 @@ class SimilarityModel(nn.Module):
         Returns:
             L2-normalized embedding, shape (batch, embedding_dim).
         """
+        images = images.to(self.device)
         backbone_embedding = self.backbone(images)            # (batch, 512) — full backbone, incl. its own proj
         embedding = self.projection_head(backbone_embedding)  # (batch, embedding_dim) — new head
         return nn.functional.normalize(embedding, dim=-1)
