@@ -35,6 +35,7 @@ def run_training_loop(
     checkpoint_path: Path | None = None,
     num_workers: int = 4,
     max_images_per_category: int | None = None,
+    weight_by_category_size: bool = False,
 ) -> tuple[SimilarityModel, list[float]]:
     """Runs a handful of steps end-to-end against a real, category-
     balanced DeepFashion subset, using the real SimilarityModel and the
@@ -48,6 +49,8 @@ def run_training_loop(
         num_workers: DataLoader subprocesses for image loading/decoding.
         max_images_per_category: forwarded to DeepFashionCAPDataset, see
             its docstring.
+        weight_by_category_size: forwarded to CategoryBalancedBatchSampler,
+            see its docstring.
 
     Returns:
         (model, losses): the trained model (already in memory, usable
@@ -71,7 +74,10 @@ def run_training_loop(
     )
 
     batch_sampler = CategoryBalancedBatchSampler(
-        dataset, categories_per_batch=categories_per_batch, images_per_category=images_per_category
+        dataset,
+        categories_per_batch=categories_per_batch,
+        images_per_category=images_per_category,
+        weight_by_category_size=weight_by_category_size,
     )
     loader = DataLoader(dataset, batch_sampler=batch_sampler, num_workers=num_workers)
     steps_per_epoch = len(loader)
