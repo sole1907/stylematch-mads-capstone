@@ -21,11 +21,11 @@ from stylematch.similarity.dataset import DeepFashionCAPDataset
 # opportunities it gets per epoch, instead of exactly one like every
 # other category. Boundaries chosen from DeepFashion CAP's real
 # training-split distribution (46 qualifying categories, 11-52,138
-# images each, confirmed via a real count, not assumed) -- most
-# categories are small, a handful are enormous (Dress alone is 52,138
-# of 209,222 total images), so treating every category equally wastes
-# most of the dataset's real volume on a handful of oversized
-# categories that barely get sampled relative to their size.
+# images each) -- most categories are small, a handful are enormous
+# (Dress alone is 52,138 of 209,222 total images), so treating every
+# category equally wastes most of the dataset's real volume on a
+# handful of oversized categories that barely get sampled relative to
+# their size.
 CATEGORY_WEIGHT_BINS = [
     (500, 1),
     (2000, 2),
