@@ -32,7 +32,7 @@ def compute_embeddings(
     all_category_labels = []
     all_attribute_labels = []
     for images, category_labels, attribute_labels in loader:
-        all_embeddings.append(model(images))
+        all_embeddings.append(model(images).cpu())
         all_category_labels.append(category_labels)
         all_attribute_labels.append(attribute_labels)
 

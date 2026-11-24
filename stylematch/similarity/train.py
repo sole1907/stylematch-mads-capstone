@@ -123,6 +123,7 @@ def run_training_loop(
             category_labels, attribute_labels, high_overlap_threshold=high_overlap_threshold
         )
         num_triplets = indices_tuple[0].numel()
+        indices_tuple = tuple(idx.to(embeddings.device) for idx in indices_tuple)
         loss = loss_fn(embeddings, labels=None, indices_tuple=indices_tuple)
 
         optimizer.zero_grad()
