@@ -123,10 +123,6 @@ def run_training_loop(
             category_labels, attribute_labels, high_overlap_threshold=high_overlap_threshold
         )
         num_triplets = indices_tuple[0].numel()
-        # Mining runs on category_labels/attribute_labels, which stay on
-        # CPU straight from the DataLoader -- moved to match embeddings
-        # here, not earlier, since the mining itself is cheap label
-        # comparison that doesn't benefit from running on GPU.
         indices_tuple = tuple(idx.to(embeddings.device) for idx in indices_tuple)
         loss = loss_fn(embeddings, labels=None, indices_tuple=indices_tuple)
 
