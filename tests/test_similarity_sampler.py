@@ -10,7 +10,7 @@ from torch.utils.data import DataLoader
 from stylematch.config import DEEPFASHION_DIR
 from stylematch.similarity.dataset import DeepFashionCAPDataset
 from stylematch.similarity.model import SimilarityModel
-from stylematch.similarity.sampler import CategoryBalancedBatchSampler
+from stylematch.similarity.sampler import CategoryBalancedBatchSampler, _category_weight
 
 pytestmark = pytest.mark.skipif(
     not (DEEPFASHION_DIR / "list_category_img.txt").exists(),
@@ -155,3 +155,94 @@ def test_triplets_mined_bounded_and_nonzero_at_init():
                 "found zero triplets at model init, expected some margin "
                 "violations given essentially-random starting embeddings"
             )
+
+
+def test_category_weight_bins():
+    """Confirms CATEGORY_WEIGHT_BINS' documented boundaries directly,
+    including the exact edges (499 vs 500, 1999 vs 2000, 9999 vs
+    10000), not just interior values."""
+    assert _category_weight(11) == 1
+    assert _category_weight(499) == 1
+    assert _category_weight(500) == 2
+    assert _category_weight(1999) == 2
+    assert _category_weight(2000) == 3
+    assert _category_weight(9999) == 3
+    assert _category_weight(10000) == 4
+    assert _category_weight(52138) == 4
+
+
+def test_weighted_mode_batches_still_have_distinct_categories():
+    """The core correctness guarantee this sampler exists for --
+    cross-category negatives to mine triplets from -- must still hold
+    under weighting. This is what the round-based design (rather than
+    one shuffle with repeated entries) exists to protect: confirms a
+    high-weight category never lands twice in the same batch.
+    """
+    dataset = DeepFashionCAPDataset(
+        split="train", min_images_per_category=IMAGES_PER_CATEGORY, num_categories=None
+    )
+    sampler = CategoryBalancedBatchSampler(
+        dataset,
+        categories_per_batch=CATEGORIES_PER_BATCH,
+        images_per_category=IMAGES_PER_CATEGORY,
+        weight_by_category_size=True,
+    )
+    for batch_indices in sampler:
+        labels_in_batch = [dataset.samples[i][1] for i in batch_indices]
+        distinct_categories = set(labels_in_batch)
+        assert len(distinct_categories) == len(labels_in_batch) // IMAGES_PER_CATEGORY, (
+            "a category appears more than once in the same batch -- "
+            "exactly what the round-based design is supposed to prevent"
+        )
+        for category in distinct_categories:
+            assert labels_in_batch.count(category) == IMAGES_PER_CATEGORY
+
+
+def test_weighted_mode_larger_categories_appear_more_often():
+    """Real DeepFashion CAP data, no category cap: confirms a category
+    known to be large (Dress, the biggest at 52,138 images) actually
+    gets more independent batch-slot opportunities per epoch than a
+    category known to be small (a weight-1 category), matching
+    CATEGORY_WEIGHT_BINS exactly, not just "more" in some vague sense.
+    """
+    dataset = DeepFashionCAPDataset(
+        split="train", min_images_per_category=IMAGES_PER_CATEGORY, num_categories=None
+    )
+    sampler = CategoryBalancedBatchSampler(
+        dataset,
+        categories_per_batch=CATEGORIES_PER_BATCH,
+        images_per_category=IMAGES_PER_CATEGORY,
+        weight_by_category_size=True,
+    )
+
+    appearance_counts: dict[int, int] = {}
+    for batch_indices in sampler:
+        for category in {dataset.samples[i][1] for i in batch_indices}:
+            appearance_counts[category] = appearance_counts.get(category, 0) + 1
+
+    for category, images in sampler.by_category.items():
+        expected_weight = _category_weight(len(images))
+        assert appearance_counts.get(category, 0) == expected_weight, (
+            f"category {category} ({len(images)} images, expected weight "
+            f"{expected_weight}) appeared {appearance_counts.get(category, 0)} times"
+        )
+
+    # At least one weight-4 and one weight-1 category must actually
+    # exist in the real data for this test to mean anything -- confirms
+    # the test isn't vacuously true because every category landed in
+    # the same bin.
+    weights_seen = {_category_weight(len(images)) for images in sampler.by_category.values()}
+    assert 1 in weights_seen and 4 in weights_seen
+
+
+def test_weighted_mode_len_matches_actual_batches_produced():
+    dataset = DeepFashionCAPDataset(
+        split="train", min_images_per_category=IMAGES_PER_CATEGORY, num_categories=None
+    )
+    sampler = CategoryBalancedBatchSampler(
+        dataset,
+        categories_per_batch=CATEGORIES_PER_BATCH,
+        images_per_category=IMAGES_PER_CATEGORY,
+        weight_by_category_size=True,
+    )
+    assert len(sampler) == sum(1 for _ in sampler)
