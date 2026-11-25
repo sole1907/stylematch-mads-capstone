@@ -166,6 +166,17 @@ class DeepFashionCAPDataset(Dataset):
         qualifying category.
         """
         by_category: dict[int, list[tuple[str, int, list[int]]]] = {}
+        # Tracked separately from by_category's buckets: a bucket stops
+        # growing once it hits max_images_per_category, but whether a
+        # category *qualifies* depends on how many images it really
+        # has, not how many got collected -- those are different
+        # numbers whenever max_images_per_category < min_images_per_category
+        # (e.g. a high inclusion threshold paired with a small
+        # per-category sample size). Checking qualification against the
+        # capped bucket instead of this counter meant no category could
+        # ever qualify in that case, since collection stopped before
+        # the bucket reached min_images_per_category.
+        category_counts: dict[int, int] = {}
         previous_category_label = None
 
         for image_name, category_label, attribute_label in self._iter_annotation_rows(split):
@@ -178,12 +189,12 @@ class DeepFashionCAPDataset(Dataset):
                 and previous_category_label is not None
                 and category_label != previous_category_label
             ):
-                qualifying = sum(
-                    1 for b in by_category.values() if len(b) >= min_images_per_category
-                )
+                qualifying = sum(1 for c in category_counts.values() if c >= min_images_per_category)
                 if qualifying >= num_categories:
                     break
             previous_category_label = category_label
+
+            category_counts[category_label] = category_counts.get(category_label, 0) + 1
 
             bucket = by_category.setdefault(category_label, [])
             if max_images_per_category is not None and len(bucket) >= max_images_per_category:
@@ -192,7 +203,7 @@ class DeepFashionCAPDataset(Dataset):
             bucket.append((image_name, category_label, attribute_label))
 
         qualifying_categories = [
-            cat for cat, bucket in by_category.items() if len(bucket) >= min_images_per_category
+            cat for cat, count in category_counts.items() if count >= min_images_per_category
         ][:num_categories]
         if num_categories is not None and len(qualifying_categories) < num_categories:
             raise ValueError(
