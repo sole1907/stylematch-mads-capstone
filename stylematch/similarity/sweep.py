@@ -13,6 +13,7 @@ from loguru import logger
 import pandas as pd
 
 from stylematch.config import REPORTS_DIR
+from stylematch.similarity.dataset import get_qualifying_categories
 from stylematch.similarity.evaluate import evaluate_retrieval_accuracy
 from stylematch.similarity.model import SimilarityModel
 from stylematch.similarity.train import run_training_loop
@@ -139,36 +140,46 @@ def run_sweep(
 
         logger.info(f"=== Config {i}/{len(configs)}: {config} ===")
 
+        # Computed once per config, shared across before-eval, training,
+        # and after-eval, so all three use the exact same category set
+        # (always decided from train) rather than re-deriving it three
+        # times, each a separate full file scan.
+        inclusion_threshold = (
+            config.images_per_category
+            if config.category_inclusion_threshold is None
+            else config.category_inclusion_threshold
+        )
+        allowed_categories = get_qualifying_categories(inclusion_threshold, split="train")
+        if config.num_categories is not None:
+            allowed_categories = set(sorted(allowed_categories)[: config.num_categories])
+
         baseline_model = SimilarityModel(
             embedding_dim=config.embedding_dim, freeze_until_block=config.freeze_until_block
         )
         before = evaluate_retrieval_accuracy(
             baseline_model,
             split="val",
-            num_categories=config.num_categories,
             min_images_per_category=config.images_per_category,
-            category_inclusion_threshold=config.category_inclusion_threshold,
+            allowed_categories=allowed_categories,
         )
 
         trained_model, losses = run_training_loop(
             num_steps=config.num_steps,
             categories_per_batch=config.categories_per_batch,
             images_per_category=config.images_per_category,
-            num_categories=config.num_categories,
             learning_rate=config.learning_rate,
             freeze_until_block=config.freeze_until_block,
             embedding_dim=config.embedding_dim,
             margin=config.margin,
             max_images_per_category=config.max_images_per_category,
             weight_by_category_size=config.weight_by_category_size,
-            category_inclusion_threshold=config.category_inclusion_threshold,
+            allowed_categories=allowed_categories,
         )
         after = evaluate_retrieval_accuracy(
             trained_model,
             split="val",
-            num_categories=config.num_categories,
             min_images_per_category=config.images_per_category,
-            category_inclusion_threshold=config.category_inclusion_threshold,
+            allowed_categories=allowed_categories,
         )
 
         row = {

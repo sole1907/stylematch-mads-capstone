@@ -8,7 +8,7 @@ import pytest
 from torch.utils.data import DataLoader
 
 from stylematch.config import DEEPFASHION_DIR
-from stylematch.similarity.dataset import NUM_ATTRIBUTES, DeepFashionCAPDataset
+from stylematch.similarity.dataset import NUM_ATTRIBUTES, DeepFashionCAPDataset, get_qualifying_categories
 
 pytestmark = pytest.mark.skipif(
     not (DEEPFASHION_DIR / "list_category_img.txt").exists(),
@@ -112,6 +112,31 @@ def test_max_images_per_category_smaller_than_min_still_qualifies_correctly():
 
     assert len(counts) == 5  # found 5 real categories with >= 500 images
     assert all(count == 4 for count in counts.values())  # but only collected 4 each
+
+
+def test_get_qualifying_categories_matches_real_known_counts():
+    """Real DeepFashion CAP counts, confirmed separately: train has 25
+    categories with >= 500 images, val has 17."""
+    assert len(get_qualifying_categories(500, split="train")) == 25
+    assert len(get_qualifying_categories(500, split="val")) == 17
+
+
+def test_allowed_categories_overrides_min_images_per_category():
+    """A thin category (too small to qualify on its own) should still
+    load if explicitly named in allowed_categories."""
+    allowed = {7}  # Halter, 11 images -- well under any real threshold
+    dataset = DeepFashionCAPDataset(
+        split="train", min_images_per_category=5000, allowed_categories=allowed
+    )
+    found_categories = {category for _, category, _ in dataset.samples}
+    assert found_categories == allowed
+
+
+def test_allowed_categories_still_respects_max_images_per_category():
+    dataset = DeepFashionCAPDataset(
+        split="train", allowed_categories={7}, max_images_per_category=3
+    )
+    assert len(dataset) == 3
 
 
 def test_getitem_falls_back_to_next_index_on_unreadable_file():
