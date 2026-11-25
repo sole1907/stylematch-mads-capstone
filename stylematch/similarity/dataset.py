@@ -166,16 +166,8 @@ class DeepFashionCAPDataset(Dataset):
         qualifying category.
         """
         by_category: dict[int, list[tuple[str, int, list[int]]]] = {}
-        # Tracked separately from by_category's buckets: a bucket stops
-        # growing once it hits max_images_per_category, but whether a
-        # category *qualifies* depends on how many images it really
-        # has, not how many got collected -- those are different
-        # numbers whenever max_images_per_category < min_images_per_category
-        # (e.g. a high inclusion threshold paired with a small
-        # per-category sample size). Checking qualification against the
-        # capped bucket instead of this counter meant no category could
-        # ever qualify in that case, since collection stopped before
-        # the bucket reached min_images_per_category.
+        # Tracks each category's real total count, independent of the
+        # capped collection bucket below.
         category_counts: dict[int, int] = {}
         previous_category_label = None
 

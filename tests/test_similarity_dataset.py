@@ -101,18 +101,8 @@ def test_num_categories_early_stop_still_exact_when_uncapped():
 
 
 def test_max_images_per_category_smaller_than_min_still_qualifies_correctly():
-    """The bug this fixes: qualification was checked against the
-    capped collection bucket, not the category's real total count, so
-    no category could ever qualify once max_images_per_category was
-    set smaller than min_images_per_category (e.g. a high inclusion
-    threshold paired with a small per-category sample size) -- every
-    bucket stopped growing at max before ever reaching min, so
-    qualifying_categories came back empty every time, regardless of
-    how large categories really were. 500 is a real threshold only a
-    minority of DeepFashion CAP's categories clear (confirmed
-    separately: 24 of 46 qualifying categories have >= 500 train
-    images), so this isn't a vacuous check against an unreachable bar.
-    """
+    """Qualification must use each category's real total count, not
+    the capped collection bucket."""
     dataset = DeepFashionCAPDataset(
         split="train", min_images_per_category=500, num_categories=5, max_images_per_category=4
     )
