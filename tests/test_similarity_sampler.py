@@ -157,6 +157,31 @@ def test_triplets_mined_bounded_and_nonzero_at_init():
             )
 
 
+def test_images_not_repeated_within_one_cycle():
+    """Real category 7 (Halter) has 11 images; two draws of 5 (10 of
+    11) must be fully distinct, from the same shuffled cycle."""
+    dataset = DeepFashionCAPDataset(split="train", allowed_categories={7, 8})
+    sampler = CategoryBalancedBatchSampler(dataset, categories_per_batch=2, images_per_category=5)
+
+    draw1 = {idx for idx in next(iter(sampler)) if dataset.samples[idx][1] == 7}
+    draw2 = {idx for idx in next(iter(sampler)) if dataset.samples[idx][1] == 7}
+    assert len(draw1) == 5
+    assert len(draw2) == 5
+    assert draw1.isdisjoint(draw2)
+
+
+def test_category_reshuffles_after_exhausting_its_pool():
+    """After 2 draws (10 of 11 used, 1 left), a 3rd draw can't
+    continue the same cycle -- must reshuffle the full pool again."""
+    dataset = DeepFashionCAPDataset(split="train", allowed_categories={7, 8})
+    sampler = CategoryBalancedBatchSampler(dataset, categories_per_batch=2, images_per_category=5)
+
+    next(iter(sampler))
+    next(iter(sampler))
+    draw3 = {idx for idx in next(iter(sampler)) if dataset.samples[idx][1] == 7}
+    assert len(draw3) == 5
+
+
 def test_category_weight_bins():
     """Confirms CATEGORY_WEIGHT_BINS' documented boundaries directly,
     including the exact edges (499 vs 500, 1999 vs 2000, 9999 vs

@@ -10,7 +10,7 @@ import torch
 from torch.utils.data import DataLoader
 
 from stylematch.similarity.attribute_mining import DEFAULT_MIN_SHARED_ATTRIBUTES
-from stylematch.similarity.dataset import DeepFashionCAPDataset
+from stylematch.similarity.dataset import DeepFashionCAPDataset, get_qualifying_categories
 from stylematch.similarity.model import SimilarityModel
 
 
@@ -105,6 +105,7 @@ def evaluate_retrieval_accuracy(
     min_shared_attributes: int = DEFAULT_MIN_SHARED_ATTRIBUTES,
     num_workers: int = 4,
     category_inclusion_threshold: int | None = None,
+    allowed_categories: set[int] | None = None,
 ) -> dict[str, float]:
     """Loads a stratified subset of `split` (same approach as training,
     see dataset.py), embeds it, and returns retrieval accuracy under
@@ -114,28 +115,30 @@ def evaluate_retrieval_accuracy(
 
     Args:
         category_inclusion_threshold: minimum images a category needs
-            to qualify for evaluation at all. None (default) reuses
-            min_images_per_category for this, same as before this
-            parameter existed. Set higher than min_images_per_category
-            to exclude thin categories entirely while still only
-            sampling min_images_per_category images per category from
-            whatever remain.
+            to qualify, decided from the train split even though this
+            function evaluates split (usually val) -- keeps the same
+            category set used for training. Ignored if
+            allowed_categories is given.
+        allowed_categories: use exactly these category labels, decided
+            externally (e.g. by a caller sharing one train-derived set
+            across training and evaluation) instead of deriving
+            qualification here.
     """
-    inclusion_threshold = (
-        min_images_per_category if category_inclusion_threshold is None else category_inclusion_threshold
-    )
+    if allowed_categories is None:
+        inclusion_threshold = (
+            min_images_per_category if category_inclusion_threshold is None else category_inclusion_threshold
+        )
+        allowed_categories = get_qualifying_categories(inclusion_threshold, split="train")
+        if num_categories is not None:
+            allowed_categories = set(sorted(allowed_categories)[:num_categories])
+
     dataset = DeepFashionCAPDataset(
         split=split,
         transform=model.preprocess_val,
-        min_images_per_category=inclusion_threshold,
-        num_categories=num_categories,
-        # Pinned to match min_images_per_category deliberately, not left
-        # uncapped like train.py's default: this function iterates the
-        # whole dataset directly (no batch sampler bounding per-step
-        # cost), so an uncapped pool here would mean genuinely embedding
-        # every real image in num_categories categories, not a bounded
-        # evaluation subset. See dataset.py's max_images_per_category
-        # docstring for the full reasoning.
+        allowed_categories=allowed_categories,
+        # Pinned to min_images_per_category deliberately, not left
+        # uncapped: this function embeds the whole dataset directly (no
+        # batch-sampler bounding per-step cost).
         max_images_per_category=min_images_per_category,
     )
     embeddings, category_labels, attribute_labels = compute_embeddings(

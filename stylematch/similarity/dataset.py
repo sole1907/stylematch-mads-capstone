@@ -31,6 +31,55 @@ DEFAULT_IMAGE_SIZE = 224
 MAX_CONSECUTIVE_LOAD_RETRIES = 20
 
 
+def _iter_annotation_rows(root: Path, split: str):
+    """Reads the three per-image annotation files in lockstep,
+    yielding (image_name, category_label, attribute_label) for `split`.
+    """
+    category_path = root / "list_category_img.txt"
+    attr_path = root / "list_attr_img.txt"
+    partition_path = root / "list_eval_partition.txt"
+
+    with (
+        open(category_path) as cat_f,
+        open(attr_path) as attr_f,
+        open(partition_path) as part_f,
+    ):
+        for _ in range(2):  # skip the two header lines in each file
+            next(cat_f)
+            next(attr_f)
+            next(part_f)
+
+        for cat_line, attr_line, part_line in zip(cat_f, attr_f, part_f):
+            cat_parts = cat_line.split()
+            attr_parts = attr_line.split()
+            part_parts = part_line.split()
+
+            image_name = cat_parts[0]
+            if attr_parts[0] != image_name or part_parts[0] != image_name:
+                raise ValueError(f"annotation files out of sync at {image_name!r}")
+            if part_parts[1] != split:
+                continue
+
+            # Files are 1-indexed; PyTorch labels are expected 0-indexed.
+            category_label = int(cat_parts[1]) - 1
+            attribute_label = [int(v) for v in attr_parts[1:]]
+            yield image_name, category_label, attribute_label
+
+
+def get_qualifying_categories(
+    min_images_per_category: int, split: str = "train", root: Path = DEEPFASHION_DIR
+) -> set[int]:
+    """Category labels with >= min_images_per_category images in
+    `split`. Decide qualification from one split (train) and reuse the
+    same set elsewhere (e.g. evaluation), rather than re-deriving it
+    independently per split.
+    """
+    counts: dict[int, int] = {}
+    for _, category_label, _ in _iter_annotation_rows(root, split):
+        counts[category_label] = counts.get(category_label, 0) + 1
+    return {cat for cat, count in counts.items() if count >= min_images_per_category}
+
+
 class DeepFashionCAPDataset(Dataset):
     """PyTorch Dataset over the downloaded DeepFashion CAP subset.
 
@@ -55,6 +104,7 @@ class DeepFashionCAPDataset(Dataset):
         min_images_per_category: int | None = None,
         num_categories: int | None = None,
         max_images_per_category: int | None = None,
+        allowed_categories: set[int] | None = None,
     ) -> None:
         """
         Args:
@@ -90,52 +140,25 @@ class DeepFashionCAPDataset(Dataset):
                 is set; caps how many images get collected per qualifying
                 category. None (default) means no cap, collect every real
                 image that category has.
+            allowed_categories: use exactly these category labels,
+                decided externally (e.g. via get_qualifying_categories
+                on a different split) instead of re-deriving
+                qualification from this split's own counts.
         """
         if split not in ("train", "val", "test"):
             raise ValueError(f"split must be 'train', 'val', or 'test', got {split!r}")
         self.root = Path(root)
         self.transform = transform
-        if min_images_per_category is not None:
+        if min_images_per_category is not None or allowed_categories is not None:
             self.samples = self._load_stratified_samples(
-                split, min_images_per_category, num_categories, max_images_per_category
+                split,
+                min_images_per_category,
+                num_categories,
+                max_images_per_category,
+                allowed_categories,
             )
         else:
             self.samples = self._load_samples(split, sample_size)
-
-    def _iter_annotation_rows(self, split: str):
-        """Reads the three per-image annotation files in lockstep,
-        yielding (image_name, category_label, attribute_label) for every
-        image in `split`.
-        """
-        category_path = self.root / "list_category_img.txt"
-        attr_path = self.root / "list_attr_img.txt"
-        partition_path = self.root / "list_eval_partition.txt"
-
-        with (
-            open(category_path) as cat_f,
-            open(attr_path) as attr_f,
-            open(partition_path) as part_f,
-        ):
-            for _ in range(2):  # skip the two header lines in each file
-                next(cat_f)
-                next(attr_f)
-                next(part_f)
-
-            for cat_line, attr_line, part_line in zip(cat_f, attr_f, part_f):
-                cat_parts = cat_line.split()
-                attr_parts = attr_line.split()
-                part_parts = part_line.split()
-
-                image_name = cat_parts[0]
-                if attr_parts[0] != image_name or part_parts[0] != image_name:
-                    raise ValueError(f"annotation files out of sync at {image_name!r}")
-                if part_parts[1] != split:
-                    continue
-
-                # Files are 1-indexed; PyTorch labels are expected 0-indexed.
-                category_label = int(cat_parts[1]) - 1
-                attribute_label = [int(v) for v in attr_parts[1:]]
-                yield image_name, category_label, attribute_label
 
     def _load_samples(
         self, split: str, sample_size: int | None
@@ -144,7 +167,7 @@ class DeepFashionCAPDataset(Dataset):
         reading the full attribute file (888MB, ~289K rows) when a
         caller only wants a handful of images."""
         samples = []
-        for image_name, category_label, attribute_label in self._iter_annotation_rows(split):
+        for image_name, category_label, attribute_label in _iter_annotation_rows(self.root, split):
             samples.append((image_name, category_label, attribute_label))
             if sample_size is not None and len(samples) >= sample_size:
                 break
@@ -153,31 +176,30 @@ class DeepFashionCAPDataset(Dataset):
     def _load_stratified_samples(
         self,
         split: str,
-        min_images_per_category: int,
+        min_images_per_category: int | None,
         num_categories: int | None,
         max_images_per_category: int | None = None,
+        allowed_categories: set[int] | None = None,
     ) -> list[tuple[str, int, list[int]]]:
         """Collects `num_categories` distinct categories that each have
         at least `min_images_per_category` images, up to
-        `max_images_per_category` each (None = no cap, every real image
-        that category has). Scans further into the file than
-        `_load_samples` would, since categories arrive in contiguous
-        blocks, not interleaved. num_categories=None means collect every
-        qualifying category.
+        `max_images_per_category` each. If allowed_categories is given,
+        qualification is decided externally instead (e.g. via
+        get_qualifying_categories on a different split) -- every
+        category in allowed_categories found in this split is used,
+        min_images_per_category/num_categories are ignored.
         """
         by_category: dict[int, list[tuple[str, int, list[int]]]] = {}
-        # Tracks each category's real total count, independent of the
-        # capped collection bucket below.
         category_counts: dict[int, int] = {}
         previous_category_label = None
 
-        for image_name, category_label, attribute_label in self._iter_annotation_rows(split):
-            # Block boundary: the previous category (if any) is now
-            # guaranteed fully scanned, safe to check whether enough
-            # qualifying categories already exist, before touching
-            # this new category's block at all.
+        for image_name, category_label, attribute_label in _iter_annotation_rows(self.root, split):
+            if allowed_categories is not None and category_label not in allowed_categories:
+                continue
+
             if (
-                num_categories is not None
+                allowed_categories is None
+                and num_categories is not None
                 and previous_category_label is not None
                 and category_label != previous_category_label
             ):
@@ -194,15 +216,18 @@ class DeepFashionCAPDataset(Dataset):
 
             bucket.append((image_name, category_label, attribute_label))
 
-        qualifying_categories = [
-            cat for cat, count in category_counts.items() if count >= min_images_per_category
-        ][:num_categories]
-        if num_categories is not None and len(qualifying_categories) < num_categories:
-            raise ValueError(
-                f"only found {len(qualifying_categories)} categories with >= "
-                f"{min_images_per_category} images in split {split!r}, "
-                f"requested {num_categories}"
-            )
+        if allowed_categories is not None:
+            qualifying_categories = list(by_category.keys())
+        else:
+            qualifying_categories = [
+                cat for cat, count in category_counts.items() if count >= min_images_per_category
+            ][:num_categories]
+            if num_categories is not None and len(qualifying_categories) < num_categories:
+                raise ValueError(
+                    f"only found {len(qualifying_categories)} categories with >= "
+                    f"{min_images_per_category} images in split {split!r}, "
+                    f"requested {num_categories}"
+                )
 
         samples = []
         for category in qualifying_categories:

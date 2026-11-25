@@ -92,6 +92,22 @@ class CategoryBalancedBatchSampler(Sampler[list[int]]):
                 f"{images_per_category} images each; need at least "
                 f"{categories_per_batch} to build one batch"
             )
+        # Per-category unused-image queue, persists across __iter__
+        # calls (i.e. across epochs) so repeated training doesn't just
+        # resample randomly -- a category's images are drawn without
+        # replacement until its whole pool is used, then reshuffled.
+        self._remaining: dict[int, list[int]] = {}
+
+    def _draw(self, category: int) -> list[int]:
+        """images_per_category indices from this category's unused
+        pool, reshuffling a fresh full cycle once exhausted."""
+        remaining = self._remaining.get(category, [])
+        if len(remaining) < self.images_per_category:
+            remaining = self.by_category[category].copy()
+            random.shuffle(remaining)
+        drawn, remaining = remaining[: self.images_per_category], remaining[self.images_per_category :]
+        self._remaining[category] = remaining
+        return drawn
 
     def _rounds(self) -> list[list[int]]:
         """One category list per round: round r contains every category
@@ -142,7 +158,7 @@ class CategoryBalancedBatchSampler(Sampler[list[int]]):
             for category_group in self._batches_for_round(categories):
                 batch: list[int] = []
                 for category in category_group:
-                    batch.extend(random.sample(self.by_category[category], self.images_per_category))
+                    batch.extend(self._draw(category))
                 yield batch
 
     def __len__(self) -> int:

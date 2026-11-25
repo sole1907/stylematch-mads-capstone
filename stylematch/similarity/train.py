@@ -17,7 +17,7 @@ from torch.utils.data import DataLoader
 
 from stylematch.config import MODELS_DIR
 from stylematch.similarity.attribute_mining import DEFAULT_HIGH_OVERLAP_THRESHOLD, mine_graded_attribute_triplets
-from stylematch.similarity.dataset import DeepFashionCAPDataset
+from stylematch.similarity.dataset import DeepFashionCAPDataset, get_qualifying_categories
 from stylematch.similarity.model import SimilarityModel
 from stylematch.similarity.sampler import CategoryBalancedBatchSampler
 
@@ -37,6 +37,7 @@ def run_training_loop(
     max_images_per_category: int | None = None,
     weight_by_category_size: bool = False,
     category_inclusion_threshold: int | None = None,
+    allowed_categories: set[int] | None = None,
 ) -> tuple[SimilarityModel, list[float]]:
     """Runs a handful of steps end-to-end against a real, category-
     balanced DeepFashion subset, using the real SimilarityModel and the
@@ -55,10 +56,11 @@ def run_training_loop(
         category_inclusion_threshold: minimum images a category needs to
             qualify for training at all. None (default) reuses
             images_per_category for this, same as before this parameter
-            existed. Set higher than images_per_category to exclude thin
-            categories entirely while still only sampling
-            images_per_category images per batch from whatever
-            categories remain.
+            existed. Ignored if allowed_categories is given.
+        allowed_categories: use exactly these category labels, decided
+            externally (e.g. by a caller sharing one train-derived set
+            across training and evaluation) instead of deriving
+            qualification here.
 
     Returns:
         (model, losses): the trained model (already in memory, usable
@@ -67,21 +69,23 @@ def run_training_loop(
     """
     model = SimilarityModel(embedding_dim=embedding_dim, freeze_until_block=freeze_until_block)
 
-    inclusion_threshold = (
-        images_per_category if category_inclusion_threshold is None else category_inclusion_threshold
-    )
+    if allowed_categories is None:
+        inclusion_threshold = (
+            images_per_category if category_inclusion_threshold is None else category_inclusion_threshold
+        )
+        allowed_categories = get_qualifying_categories(inclusion_threshold, split="train")
+        if num_categories is not None:
+            allowed_categories = set(sorted(allowed_categories)[:num_categories])
+
     dataset = DeepFashionCAPDataset(
         split="train",
         transform=model.preprocess_train,
-        min_images_per_category=inclusion_threshold,
-        num_categories=num_categories,
+        allowed_categories=allowed_categories,
         max_images_per_category=max_images_per_category,
     )
     logger.info(
-        f"Loaded {len(dataset)} images across "
-        f"{num_categories if num_categories is not None else 'every qualifying'} categories "
-        f"(split='train', >= {inclusion_threshold} images each to qualify, "
-        f"{images_per_category} sampled per batch, "
+        f"Loaded {len(dataset)} images across {len(allowed_categories)} categories "
+        f"(split='train', {images_per_category} sampled per batch, "
         f"max_images_per_category={max_images_per_category})"
     )
 
