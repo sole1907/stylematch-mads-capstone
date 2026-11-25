@@ -104,17 +104,30 @@ def evaluate_retrieval_accuracy(
     batch_size: int = 32,
     min_shared_attributes: int = DEFAULT_MIN_SHARED_ATTRIBUTES,
     num_workers: int = 4,
+    category_inclusion_threshold: int | None = None,
 ) -> dict[str, float]:
     """Loads a stratified subset of `split` (same approach as training,
     see dataset.py), embeds it, and returns retrieval accuracy under
     both correctness definitions (category-only and attribute-aware),
     plus the random baseline, so the numbers mean something on their
     own and can be compared to each other directly.
+
+    Args:
+        category_inclusion_threshold: minimum images a category needs
+            to qualify for evaluation at all. None (default) reuses
+            min_images_per_category for this, same as before this
+            parameter existed. Set higher than min_images_per_category
+            to exclude thin categories entirely while still only
+            sampling min_images_per_category images per category from
+            whatever remain.
     """
+    inclusion_threshold = (
+        min_images_per_category if category_inclusion_threshold is None else category_inclusion_threshold
+    )
     dataset = DeepFashionCAPDataset(
         split=split,
         transform=model.preprocess_val,
-        min_images_per_category=min_images_per_category,
+        min_images_per_category=inclusion_threshold,
         num_categories=num_categories,
         # Pinned to match min_images_per_category deliberately, not left
         # uncapped like train.py's default: this function iterates the
