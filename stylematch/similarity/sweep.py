@@ -32,6 +32,7 @@ class TrainingConfig:
     embedding_dim: int = 256
     max_images_per_category: int | None = None
     weight_by_category_size: bool = False
+    category_inclusion_threshold: int | None = None
 
 
 def build_grid(
@@ -142,7 +143,11 @@ def run_sweep(
             embedding_dim=config.embedding_dim, freeze_until_block=config.freeze_until_block
         )
         before = evaluate_retrieval_accuracy(
-            baseline_model, split="val", num_categories=config.num_categories
+            baseline_model,
+            split="val",
+            num_categories=config.num_categories,
+            min_images_per_category=config.images_per_category,
+            category_inclusion_threshold=config.category_inclusion_threshold,
         )
 
         trained_model, losses = run_training_loop(
@@ -156,9 +161,14 @@ def run_sweep(
             margin=config.margin,
             max_images_per_category=config.max_images_per_category,
             weight_by_category_size=config.weight_by_category_size,
+            category_inclusion_threshold=config.category_inclusion_threshold,
         )
         after = evaluate_retrieval_accuracy(
-            trained_model, split="val", num_categories=config.num_categories
+            trained_model,
+            split="val",
+            num_categories=config.num_categories,
+            min_images_per_category=config.images_per_category,
+            category_inclusion_threshold=config.category_inclusion_threshold,
         )
 
         row = {
