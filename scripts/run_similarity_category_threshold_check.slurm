@@ -1,16 +1,18 @@
 #!/bin/bash
 # Checks whether dropping thin categories (<500 images) entirely
-# improves retrieval accuracy, as an alternative to category-size
-# weighting (which was tried and decisively underperformed, see
-# run_similarity_sampling_check.py). See
-# run_similarity_category_threshold_check.py for the full grid (18
-# configs: category_inclusion_threshold x num_steps x
-# images_per_category) and why this exists.
+# improves retrieval accuracy, and whether category-size weighting
+# (which was tried on its own and decisively underperformed, see
+# run_similarity_sampling_check.py) behaves differently once combined
+# with dropping those thin categories. See
+# run_similarity_category_threshold_check.py for the full grid (36
+# configs: category_inclusion_threshold x weight_by_category_size x
+# num_steps x images_per_category) and why this exists.
 #
 # --time=08:00:00 is the account's hard per-job cap, requested as a
 # safety buffer, not an estimate -- the equivalent 18-config sampling
 # check finished in ~30 minutes once the DeepFashion data gap was
-# fixed; this should be similar.
+# fixed; this grid is double that (36 configs), so expect roughly an
+# hour, still comfortably within the cap.
 #
 # Same one-time setup as the other similarity SLURM scripts (repo
 # already cloned, venv already built, real DeepFashion data already on
