@@ -100,6 +100,20 @@ def test_num_categories_early_stop_still_exact_when_uncapped():
     assert len(distinct_categories) == 5
 
 
+def test_max_images_per_category_smaller_than_min_still_qualifies_correctly():
+    """Qualification must use each category's real total count, not
+    the capped collection bucket."""
+    dataset = DeepFashionCAPDataset(
+        split="train", min_images_per_category=500, num_categories=5, max_images_per_category=4
+    )
+    counts: dict[int, int] = {}
+    for _, category_label, _ in dataset.samples:
+        counts[category_label] = counts.get(category_label, 0) + 1
+
+    assert len(counts) == 5  # found 5 real categories with >= 500 images
+    assert all(count == 4 for count in counts.values())  # but only collected 4 each
+
+
 def test_getitem_falls_back_to_next_index_on_unreadable_file():
     """One corrupted/missing file shouldn't crash an hours-long
     unattended run, it should fall back to a different valid sample
