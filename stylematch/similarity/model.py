@@ -14,15 +14,8 @@ BACKBONE_OUTPUT_DIM = 512  # confirmed via smoke test (tests/test_marqo_backbone
 class SimilarityModel(nn.Module):
     """Marqo-FashionCLIP's visual tower (partially frozen) + a new trainable
     projection head, producing a single L2-normalized embedding per image.
-
-    Freeze strategy: early transformer blocks (general-purpose visual
-    features) stay frozen; later blocks, the final norm, and the backbone's
-    own projection are fine-tuned, alongside a brand-new projection head on
-    top. Starting cutoff (`freeze_until_block=8`) is a literature-backed
-    heuristic (Yosinski et al., 2014), not a value derived for this dataset;
-    expected to be tuned via the Week 3 hyperparameter iteration, not
-    treated as final.
-    """
+    Early blocks stay frozen; later blocks, final norm, and backbone
+    projection are fine-tuned alongside the new head."""
 
     def __init__(
         self,
@@ -32,15 +25,10 @@ class SimilarityModel(nn.Module):
     ) -> None:
         """
         Args:
-            embedding_dim: dimensionality of the final similarity embedding
-                output by the new projection head.
+            embedding_dim: output dimensionality of the new projection head.
             freeze_until_block: transformer blocks before this index stay
-                frozen; this index onward (plus the final norm and the
-                backbone's own projection) are fine-tuned. Valid range:
-                0-12 (0 = nothing frozen, 12 = entire backbone frozen).
-            device: where to put the model. None (default) picks CUDA
-                if available, else CPU -- pass an explicit value to
-                override that.
+                frozen; range 0-12 (0 = nothing frozen, 12 = all frozen).
+            device: None picks CUDA if available, else CPU.
         """
         super().__init__()
         if not 0 <= freeze_until_block <= 12:
@@ -69,10 +57,9 @@ class SimilarityModel(nn.Module):
         self.to(self.device)
 
     def _apply_freeze(self, freeze_until_block: int) -> None:
-        """Freezes the whole backbone, then unfreezes from `freeze_until_block`
-        onward: the later transformer blocks, the final norm, and the
-        backbone's own projection. The entire text tower is left frozen
-        throughout, unused for image-to-image similarity."""
+        """Freezes the whole backbone, then unfreezes from freeze_until_block
+        onward (later blocks, final norm, backbone projection). Text tower
+        stays frozen throughout -- unused for image-to-image similarity."""
         for param in self.backbone.parameters():
             param.requires_grad = False
         for block in self.backbone.transformer.resblocks[freeze_until_block:]:
@@ -85,8 +72,8 @@ class SimilarityModel(nn.Module):
     def forward(self, images: Tensor) -> Tensor:
         """
         Args:
-            images: float tensor, shape (batch, 3, 224, 224), preprocessed
-                to match the backbone (open_clip's own preprocessing, not
+            images: float tensor (batch, 3, 224, 224), preprocessed to
+                match the backbone (open_clip's preprocessing, not
                 dataset.py's placeholder transform).
 
         Returns:

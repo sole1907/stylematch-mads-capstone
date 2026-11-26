@@ -17,24 +17,16 @@ INTERIM_DATA_DIR = DATA_DIR / "interim"
 PROCESSED_DATA_DIR = DATA_DIR / "processed"
 EXTERNAL_DATA_DIR = DATA_DIR / "external"
 
-# Overridable via a DEEPFASHION_DIR env var (or a .env file, already
-# loaded above) so the same repo can point at a different images
-# location per machine without any code change: locally, the default
-# below (repo-relative) is fine; on Great Lakes, the real dataset lives
-# on /scratch instead, set via .env there, never committed (.env is
-# gitignored).
+# Overridable via env var/.env so the same repo can point at a
+# different images location per machine (e.g. Great Lakes' /scratch).
 DEEPFASHION_DIR = Path(os.environ.get("DEEPFASHION_DIR", RAW_DATA_DIR / "deepfashion"))
 
-# Same override pattern as DEEPFASHION_DIR, for the compatibility
-# engine's dataset instead. See references/polyvore_outfits_schema.md
-# for what's inside this directory.
+# Same override pattern, for the compatibility engine's dataset. See
+# references/polyvore_outfits_schema.md for what's inside.
 POLYVORE_DIR = Path(os.environ.get("POLYVORE_DIR", RAW_DATA_DIR / "polyvore_outfits"))
 
-# Same override pattern as DEEPFASHION_DIR above, for the same reason:
-# checkpoints/results currently land wherever the repo itself is cloned
-# (fine by default, e.g. Great Lakes' /home persists reliably), but
-# either can be redirected elsewhere (e.g. if checkpoints alone ever
-# need to move off /home's smaller quota) without touching code.
+# Same override pattern, in case checkpoints need to move off a
+# smaller quota (e.g. Great Lakes' /home) without touching code.
 MODELS_DIR = Path(os.environ.get("MODELS_DIR", PROJ_ROOT / "models"))
 
 REPORTS_DIR = Path(os.environ.get("REPORTS_DIR", PROJ_ROOT / "reports"))

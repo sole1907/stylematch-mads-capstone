@@ -1,10 +1,6 @@
 """PyTorch Datasets for the Polyvore Outfits dataset, used to train and
-evaluate the compatibility engine.
-
-See `references/polyvore_outfits_schema.md` for what's inside the raw
-files, and the nondisjoint-split decision recorded there (matches the
-split Vasileva et al.'s cited numbers are reported on).
-"""
+evaluate the compatibility engine. See references/polyvore_outfits_schema.md
+for the raw files and the nondisjoint-split decision."""
 
 import json
 from pathlib import Path
@@ -20,14 +16,12 @@ from stylematch.config import POLYVORE_DIR
 
 DEFAULT_IMAGE_SIZE = 224
 
-# How many consecutive outfits __getitem__ will try before giving up and
-# raising, same bounded-retry policy as DeepFashionCAPDataset.
+# Consecutive load failures tolerated before __getitem__ gives up,
+# same bounded-retry policy as DeepFashionCAPDataset.
 MAX_CONSECUTIVE_LOAD_RETRIES = 20
 
-# The real metadata's semantic_category vocabulary (confirmed via the
-# downloaded data: exactly these 11 values, see
-# references/polyvore_outfits_schema.md). Sorted so the label mapping is
-# deterministic across machines/runs.
+# The real metadata's semantic_category vocabulary (confirmed: exactly
+# these 11 values). Sorted so the label mapping is deterministic.
 SEMANTIC_CATEGORIES = sorted(
     [
         "accessories",
@@ -82,16 +76,10 @@ def _load_and_transform_image(root: Path, transform, item_id: str) -> Tensor:
 
 
 class PolyvoreOutfitDataset(Dataset):
-    """PyTorch Dataset over real outfits, for training.
-
-    `__getitem__` returns one whole outfit (a variable-length list of
-    items) — this is the unavoidable shape here: compatibility is a
-    property of a set of items, not of any single one. Positive/negative
-    pair or triplet construction (same-outfit items as positive signal,
-    cross-outfit items as negative) happens downstream, via a batch
-    sampler, mirroring how `CategoryBalancedBatchSampler` does this for
-    the similarity engine rather than baking it into the dataset itself.
-    """
+    """PyTorch Dataset over real outfits, for training. `__getitem__`
+    returns one whole outfit (compatibility is a set property, not a
+    single-item one); positive/negative construction happens downstream
+    via a batch sampler, not baked in here."""
 
     def __init__(
         self,
@@ -101,13 +89,10 @@ class PolyvoreOutfitDataset(Dataset):
     ) -> None:
         """
         Args:
-            root: directory containing the downloaded Polyvore Outfits
-                files (nondisjoint split), see
-                `references/polyvore_outfits_schema.md`.
-            split: one of "train", "valid", "test", matching
-                `{split}.json`.
-            transform: image preprocessing/augmentation pipeline,
-                applied to each item image before it's returned.
+            root: directory with the downloaded Polyvore Outfits files
+                (nondisjoint split).
+            split: one of "train", "valid", "test".
+            transform: preprocessing/augmentation applied to each image.
         """
         if split not in VALID_SPLITS:
             raise ValueError(f"split must be one of {VALID_SPLITS}, got {split!r}")
@@ -129,9 +114,8 @@ class PolyvoreOutfitDataset(Dataset):
                 `polyvore_item_metadata.json`.
             outfit_id: the outfit's `set_id`.
 
-        Falls back to the next outfit (wrapping around) on a load
-        failure, same bounded-retry policy as
-        DeepFashionCAPDataset.__getitem__.
+        Falls back to the next outfit on a load failure, same
+        bounded-retry policy as DeepFashionCAPDataset.__getitem__.
         """
         last_error: Exception | None = None
         for attempt in range(MAX_CONSECUTIVE_LOAD_RETRIES):
@@ -164,14 +148,9 @@ class PolyvoreOutfitDataset(Dataset):
 
 
 class FITBDataset(Dataset):
-    """PyTorch Dataset over the fill-in-the-blank eval task.
-
-    Interface contract: one FITB question per `__getitem__` call —
-    the outfit's context items plus 4 answer candidates, exactly one
-    of which is correct. Separate from `PolyvoreOutfitDataset`: this
-    is a fixed, official eval set, not something a training sampler
-    reshapes.
-    """
+    """PyTorch Dataset over the fill-in-the-blank eval task: one
+    question per `__getitem__` call, context items plus 4 answer
+    candidates. A fixed, official eval set, not sampler-reshaped."""
 
     def __init__(
         self,
@@ -204,9 +183,7 @@ class FITBDataset(Dataset):
             candidate_images: the 4 answer candidates, exactly one
                 correct.
             correct_index: index into candidate_images (0-3) of the
-                correct answer. Always 0 — confirmed against real data
-                (see references/polyvore_outfits_schema.md), not
-                assumed.
+                correct answer. Always 0, confirmed against real data.
         """
         question = self.questions[idx]
         context_ids = [_resolve_composite_id(ref, self.outfit_index) for ref in question["question"]]
@@ -222,13 +199,9 @@ class FITBDataset(Dataset):
 
 
 class CompatibilityDataset(Dataset):
-    """PyTorch Dataset over the compatibility (AUC) eval task.
-
-    Interface contract: one candidate outfit per `__getitem__` call,
-    with a real/fake label — real outfits (label=1) and generated
-    negatives (label=0), both already fixed by the official eval file,
-    not sampled fresh each time like training negatives are.
-    """
+    """PyTorch Dataset over the compatibility (AUC) eval task: one
+    candidate outfit per `__getitem__` call with a real/fake label,
+    both fixed by the official eval file (not sampled fresh)."""
 
     def __init__(
         self,

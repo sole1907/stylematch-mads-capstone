@@ -1,14 +1,9 @@
-"""Compatibility scoring model: same Marqo-FashionCLIP visual backbone
-(partially frozen) as the similarity engine, its own separately
-fine-tuned projection head, producing one embedding per item --
-compatibility between items is then a function of their embeddings'
-pairwise similarity, not a separate learned "outfit" representation.
-
-Independent from SimilarityModel for now (own backbone instance, own
-weights). "Optional chaining" (reusing SimilarityModel's trained
-embeddings instead) is a later comparison experiment, once both
-engines have final checkpoints.
-"""
+"""Compatibility scoring model: same Marqo-FashionCLIP backbone as the
+similarity engine, its own separately fine-tuned projection head.
+Compatibility is a function of embeddings' pairwise similarity, not a
+separate learned "outfit" representation. Independent from
+SimilarityModel for now (own weights); reusing its embeddings instead
+is a later comparison experiment."""
 
 import open_clip
 import torch
@@ -21,15 +16,10 @@ BACKBONE_OUTPUT_DIM = 512  # confirmed via smoke test (tests/test_marqo_backbone
 class CompatibilityModel(nn.Module):
     """Marqo-FashionCLIP's visual tower (partially frozen) + a new,
     separately-trained projection head, producing one L2-normalized
-    embedding per item, its own independent instance and weights --
-    see module docstring for why independent.
-
-    Compatibility between items is the mean pairwise cosine similarity
-    across every distinct pair in a candidate outfit (this project's
-    simplified analogue of Vasileva et al.'s pairwise-distance
-    aggregation, without their type-conditioned subspace masking -- a
-    later refinement, not attempted in this skeleton).
-    """
+    embedding per item. Compatibility is the mean pairwise cosine
+    similarity across every distinct pair in a candidate outfit --
+    this project's simplified analogue of Vasileva et al.'s
+    pairwise-distance aggregation, without type-conditioned masking."""
 
     def __init__(
         self,
@@ -39,16 +29,10 @@ class CompatibilityModel(nn.Module):
     ) -> None:
         """
         Args:
-            embedding_dim: dimensionality of the final compatibility
-                embedding output by the new projection head.
-            freeze_until_block: transformer blocks before this index
-                stay frozen; this index onward (plus the final norm
-                and the backbone's own projection) are fine-tuned.
-                Valid range: 0-12 (0 = nothing frozen, 12 = entire
-                backbone frozen).
-            device: where to put the model. None (default) picks CUDA
-                if available, else CPU -- pass an explicit value to
-                override that.
+            embedding_dim: output dimensionality of the new projection head.
+            freeze_until_block: transformer blocks before this index stay
+                frozen; range 0-12 (0 = nothing frozen, 12 = all frozen).
+            device: None picks CUDA if available, else CPU.
         """
         super().__init__()
         if not 0 <= freeze_until_block <= 12:
@@ -89,16 +73,13 @@ class CompatibilityModel(nn.Module):
     def forward(self, images: Tensor) -> Tensor:
         """
         Args:
-            images: float tensor, shape (batch, 3, 224, 224), preprocessed
-                to match the backbone (open_clip's own preprocessing).
+            images: float tensor (batch, 3, 224, 224), preprocessed to
+                match the backbone.
 
         Returns:
-            L2-normalized embedding, shape (batch, embedding_dim), one
-            per image. Batch here is just "however many item images
-            you pass in" -- an outfit's items, a FITB question's
-            context+candidates, whatever the caller assembles. Turning
-            a set of these into one compatibility score is
-            score_outfit's job, not forward's.
+            L2-normalized embedding, shape (batch, embedding_dim).
+            Batch is just "however many item images"; turning these
+            into one compatibility score is score_outfit's job.
         """
         images = images.to(self.device)
         backbone_embedding = self.backbone(images)
@@ -109,18 +90,14 @@ class CompatibilityModel(nn.Module):
         """Scores one outfit's compatibility from its items' embeddings.
 
         Args:
-            item_embeddings: shape (num_items, embedding_dim), one
-                already-L2-normalized embedding per item (from
-                forward()). Takes embeddings directly rather than raw
-                images, since outfits vary in size and don't stack
-                into a single same-shape batch the way forward()'s
-                input does.
+            item_embeddings: shape (num_items, embedding_dim), already
+                L2-normalized (from forward()). Takes embeddings
+                directly since outfits vary in size and don't stack
+                into one same-shape batch.
 
         Returns:
-            Scalar tensor: mean cosine similarity across every
-            distinct pair of items in the outfit. Embeddings are
-            already L2-normalized, so cosine similarity is just the
-            dot product.
+            Scalar tensor: mean cosine similarity (dot product, since
+            L2-normalized) across every distinct pair of items.
         """
         num_items = item_embeddings.shape[0]
         if num_items < 2:

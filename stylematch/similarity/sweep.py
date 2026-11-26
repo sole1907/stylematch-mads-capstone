@@ -1,8 +1,7 @@
 """Hyperparameter sweep for the similarity engine: runs training +
-before/after validation-accuracy evaluation across multiple configs, so
-they can be compared side by side instead of tested one at a time by
-hand. Validation split only, never the test set, see evaluate.py.
-"""
+before/after validation-accuracy evaluation across multiple configs,
+so they can be compared side by side. Validation split only, never
+the test set, see evaluate.py."""
 
 from dataclasses import asdict, dataclass, replace
 from itertools import product
@@ -43,12 +42,9 @@ def build_grid(
     freeze_until_block: list[int] = (8,),
     **fixed_kwargs,
 ) -> list[TrainingConfig]:
-    """Builds every combination (Cartesian product) of the given
-    learning_rate / num_steps / margin / freeze_until_block values as
-    TrainingConfig objects. Any other TrainingConfig field (e.g.
-    num_categories) can be fixed across the whole grid via
-    fixed_kwargs.
-    """
+    """Cartesian product of learning_rate / num_steps / margin /
+    freeze_until_block as TrainingConfig objects. Other fields can be
+    fixed across the grid via fixed_kwargs."""
     combos = product(learning_rate, num_steps, margin, freeze_until_block)
     return [
         TrainingConfig(
@@ -63,19 +59,10 @@ def build_grid(
 
 
 def _find_matching_row(config: TrainingConfig, existing_results: pd.DataFrame) -> dict | None:
-    """Looks for a row in `existing_results` whose hyperparameters match
-    `config` exactly, used to detect already-completed configs when
-    resuming an interrupted sweep. Compares against each field's actual
-    type on the live config object, not whatever dtype the CSV happened
-    to load as, floats get a tolerance (CSV round-tripping can lose a
-    little precision), ints/others need exact equality. A field that's
-    None on the live config (e.g. max_images_per_category left uncapped)
-    round-trips through CSV as NaN, not None, so it's matched via
-    pd.isna rather than `==`, which would otherwise always be False
-    (NaN never equals anything, including None), silently breaking
-    resume for any config using that field. Returns the matching row as
-    a dict, or None if no match exists.
-    """
+    """Finds a row in `existing_results` whose hyperparameters match
+    `config` exactly, for resuming an interrupted sweep. Floats get a
+    tolerance (CSV round-tripping loses precision); None fields are
+    matched via pd.isna since CSV round-trips them as NaN, not None."""
     config_values = asdict(config)
     for _, row in existing_results.iterrows():
         if all(
@@ -94,27 +81,18 @@ def run_sweep(
     configs: list[TrainingConfig], results_path: Path | None = REPORTS_DIR / "sweep_results.csv"
 ) -> pd.DataFrame:
     """Runs training + before/after validation retrieval accuracy for
-    each config in turn.
-
-    Resumable: if `results_path` already has results from a previous,
-    interrupted run, any config that already has a matching saved result
-    is reused instead of retrained, so restarting after a timeout (e.g.
-    a Slurm job hitting its time limit) only does the remaining work,
-    not the whole sweep over again.
+    each config. Resumable: a config already in `results_path` is
+    reused instead of retrained, so a timed-out Slurm job only redoes
+    remaining work on resubmit.
 
     Args:
         configs: the hyperparameter combinations to try.
-        results_path: where to save the comparison table as CSV,
-            updated after *every* config completes, not just at the
-            end, so a crash or timeout partway through a long
-            unattended run doesn't lose results already finished. Also
-            where completed-config detection reads from, on resume.
-            Pass None to skip saving, in-memory DataFrame only, and to
-            disable resume (nothing to resume from without a file).
+        results_path: CSV saved after every config (so a crash loses
+            nothing) and read on resume. None disables both.
 
     Returns:
-        One row per config: its hyperparameters, accuracy before and
-        after training, the improvement, and the final training loss.
+        One row per config: hyperparameters, before/after accuracy,
+        improvement, final training loss.
     """
     existing_results = None
     if results_path is not None:
@@ -141,9 +119,7 @@ def run_sweep(
         logger.info(f"=== Config {i}/{len(configs)}: {config} ===")
 
         # Computed once per config, shared across before-eval, training,
-        # and after-eval, so all three use the exact same category set
-        # (always decided from train) rather than re-deriving it three
-        # times, each a separate full file scan.
+        # and after-eval, so all three use the same category set.
         inclusion_threshold = (
             config.images_per_category
             if config.category_inclusion_threshold is None
@@ -197,9 +173,8 @@ def run_sweep(
         )
 
         if results_path is not None:
-            # Rewritten after every config, not appended, so the file is
-            # always a valid, complete CSV if a long run gets interrupted,
-            # never a half-written row.
+            # Rewritten after every config, not appended, so the file
+            # is always a valid, complete CSV if interrupted.
             pd.DataFrame(rows).to_csv(results_path, index=False)
 
     results = pd.DataFrame(rows)
@@ -217,29 +192,20 @@ def run_staged_search(
     base_config: TrainingConfig = TrainingConfig(),
     results_dir: Path = REPORTS_DIR,
 ) -> tuple[TrainingConfig, pd.DataFrame]:
-    """Runs a sequence of small sweeps automatically: each stage varies
-    only the parameter(s) named in that stage's dict, holding everything
-    else at the best config found by the *previous* stage, then that
-    stage's winner (by `improvement`) gets carried forward automatically.
+    """Runs a sequence of small sweeps: each stage varies only its own
+    named parameter(s), holding everything else at the previous
+    stage's winner, then carries that winner forward automatically.
 
     Args:
-        stages: ordered list of dicts, each naming which TrainingConfig
-            field(s) to vary that stage and what values to try, e.g.
-            [{"freeze_until_block": [4, 6, 8, 10]},
-             {"margin": [0.1, 0.2, 0.3]},
-             {"num_steps": [30, 60, 100]}].
-        base_config: starting point for every field not yet touched by
-            an earlier stage.
-        results_dir: each stage's full results are saved as their own
-            CSV (staged_search_stage_1.csv, ...), plus a final
-            staged_search_summary.csv recording the winner chosen at
-            each stage, so the whole run's reasoning is inspectable
-            afterward, not just the final config.
+        stages: ordered dicts naming which field(s) to vary and what
+            values to try, e.g. [{"margin": [0.1, 0.2, 0.3]}, ...].
+        base_config: starting point for fields no stage has touched yet.
+        results_dir: each stage's results + a final summary CSV are
+            saved here, so the run's reasoning stays inspectable.
 
     Returns:
-        (best_config, summary): the final TrainingConfig after all
-        stages' winners are applied, and a DataFrame of what was chosen
-        at each stage and why (its improvement score).
+        (best_config, summary) -- final TrainingConfig and a DataFrame
+        of each stage's winner and improvement score.
     """
     current_best = base_config
     summary_rows = []
@@ -291,22 +257,14 @@ def run_staged_search_lite(
     results_dir: Path = REPORTS_DIR / "sweep_lite",
 ) -> tuple[TrainingConfig, pd.DataFrame]:
     """Same mechanics as run_staged_search, scaled down for a fast local
-    check: small hyperparameter lists, few training steps, few
-    categories. Confirms the search machinery itself works (joint-stage
-    winner carry-forward, resume-on-rerun), not meant to produce
-    trustworthy hyperparameter conclusions, that's what the full-scale
-    search in __main__ (sized for real compute) is for.
-
-    Writes to its own results_dir (reports/sweep_lite/ by default),
-    separate from the real search's reports/staged_search_stage_*.csv,
-    so local test runs never mix with real results and can be deleted
-    at any time without touching anything that matters.
+    check (small grids, few steps/categories) -- confirms the search
+    machinery works, not meant for real hyperparameter conclusions.
+    Writes to its own results_dir so it never mixes with real results.
 
     Args:
-        stages: same shape as run_staged_search's `stages`. Defaults to
-            a small 2-stage version if not given.
-        base_config: starting point. Defaults to a fast local config
-            (5 steps, 10 categories) if not given.
+        stages: same shape as run_staged_search's `stages`; defaults to
+            a small 2-stage version.
+        base_config: defaults to a fast local config.
         results_dir: defaults to a dedicated "lite" subdirectory.
     """
     if stages is None:
@@ -321,17 +279,9 @@ def run_staged_search_lite(
 
 
 if __name__ == "__main__":
-    # learning_rate and freeze_until_block are searched *jointly* in one
-    # stage, not sequentially: both govern how much the pretrained
-    # weights get disrupted per step (freeze depth controls how many
-    # parameters can move, LR controls how far each one moves), so
-    # they're plausibly coupled, fixing one before searching the other
-    # risks finding a freeze depth that's only good conditional on a
-    # possibly-wrong LR.
-    #
-    # margin and num_steps are kept as separate, later stages, weaker
-    # coupling to LR/freeze depth, sequential narrowing is a reasonable
-    # tradeoff there to keep the total search tractable.
+    # learning_rate and freeze_until_block are searched jointly (both
+    # govern how much the pretrained weights move, so they're coupled);
+    # margin and num_steps are weaker-coupled, later, separate stages.
     best_config, summary = run_staged_search(
         stages=[
             {
