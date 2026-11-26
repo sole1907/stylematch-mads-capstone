@@ -1,30 +1,18 @@
 """Attribute-aware triplet mining: a positive pair requires BOTH
-category match and attribute overlap, not category alone.
+category match and attribute overlap, not category alone. Builds
+(anchor, positive, negative) index triples directly, in the format
+pytorch-metric-learning losses accept via `indices_tuple`.
 
-This module builds the (anchor, positive, negative) index triples
-directly, in the exact format pytorch-metric-learning's loss functions
-accept via their own `indices_tuple` argument (confirmed: TripletMarginLoss
-works correctly with labels=None when indices_tuple is supplied directly,
-including the empty-triplets case, which returns a loss of 0.0, matching
-the built-in miner's existing behavior for batches with no valid triplets).
-
-Two miners are provided: the original binary version
-(mine_attribute_aware_triplets, same category + any overlap vs.
-different category), and a graded, 4-tier version
-(mine_graded_attribute_triplets) that's now the one wired into train.py.
-Both are kept, not just the newer one, useful to compare directly.
-"""
+Two miners: the binary version (mine_attribute_aware_triplets) and the
+graded, 4-tier version (mine_graded_attribute_triplets) wired into
+train.py. Both kept, for direct comparison."""
 
 import torch
 
-# DeepFashion CAP's attribute vectors are extremely sparse: ~3.5 active
-# attributes per item on average, out of 1000 (confirmed empirically).
-# Requiring more than a small handful of shared attributes would almost
-# never be satisfied; 1 is the realistic starting threshold for the
-# binary miner, and 2 is the "high overlap" cutoff for the graded one
-# (same-category pairs: 45.4% share 0, 34.1% share 1, 16.2% share 2,
-# only ~4% share 3+, confirmed empirically, so "2+" is as fine-grained
-# as the data meaningfully supports).
+# DeepFashion CAP attribute vectors are sparse (~3.5 active of 1000 per
+# item). 1 is a realistic binary threshold; 2 is the graded "high
+# overlap" cutoff (same-category pairs: 45.4% share 0, 34.1% share 1,
+# 16.2% share 2, ~4% share 3+ -- as fine-grained as the data supports).
 DEFAULT_MIN_SHARED_ATTRIBUTES = 1
 DEFAULT_HIGH_OVERLAP_THRESHOLD = 2
 
@@ -36,12 +24,9 @@ def _category_and_overlap_masks(
 
     Returns:
         (same_category_other, different_category, shared_attribute_counts,
-        anchor_has_attributes): same_category_other and
-        different_category are (batch, batch) boolean matrices
-        (same_category_other excludes the diagonal, an item is never its
-        own candidate); shared_attribute_counts is (batch, batch) float,
-        the count of co-active attributes per pair; anchor_has_attributes
-        is (batch,) boolean.
+        anchor_has_attributes): first two are (batch, batch) boolean
+        matrices (diagonal excluded); shared_attribute_counts is
+        (batch, batch) float; anchor_has_attributes is (batch,) boolean.
     """
     batch_size = category_labels.size(0)
     device = category_labels.device
@@ -64,32 +49,23 @@ def mine_attribute_aware_triplets(
     min_shared_attributes: int = DEFAULT_MIN_SHARED_ATTRIBUTES,
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """Mines every valid (anchor, positive, negative) triplet in a batch,
-    matching TripletMarginMiner(type_of_triplets="all")'s semantics (all
-    valid combinations, not just one per anchor).
+    matching TripletMarginMiner(type_of_triplets="all") semantics.
 
-    Positive: same category AND (shares >= min_shared_attributes active
-    attributes with the anchor, OR the anchor itself has zero active
-    attributes). The fallback exists because confirmed in real data, a
-    non-trivial fraction of items have no active attributes at all,
-    against which any overlap threshold is meaningless, not a signal
-    that the item is dissimilar to everything.
-    Negative: different category (unchanged from category-only mining;
-    only the positive definition is being tightened here).
+    Positive: same category AND (overlap >= min_shared_attributes, OR
+    the anchor has zero active attributes -- a real fallback, since a
+    non-trivial fraction of items have none). Negative: different
+    category.
 
     Args:
         category_labels: (batch,) int tensor.
-        attribute_labels: (batch, num_attributes) tensor, values in
-            {-1, 1} (DeepFashion CAP's own encoding: 1 = has the
-            attribute, -1 = does not).
-        min_shared_attributes: minimum co-active attribute count
-            required for a same-category pair to count as a positive.
+        attribute_labels: (batch, num_attributes) tensor, {-1, 1}
+            (DeepFashion CAP's encoding).
+        min_shared_attributes: overlap required to count as a positive.
 
     Returns:
         (anchor_idx, positive_idx, negative_idx): parallel 1D long
-        tensors, one entry per mined triplet. Directly usable as a
-        pytorch-metric-learning loss function's `indices_tuple`
-        argument (with labels=None). All three are empty tensors if no
-        valid triplet exists in the batch.
+        tensors, usable directly as a pytorch-metric-learning loss's
+        `indices_tuple` (labels=None). Empty if no valid triplet exists.
     """
     device = category_labels.device
     same_category_other, different_category, shared_attribute_counts, anchor_has_attributes = (
@@ -123,37 +99,23 @@ def mine_graded_attribute_triplets(
     attribute_labels: torch.Tensor,
     high_overlap_threshold: int = DEFAULT_HIGH_OVERLAP_THRESHOLD,
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-    """Mines triplets encoding a 4-tier ordering of closeness, not a flat
-    positive/negative split. Per anchor, ordered closest to farthest:
-
-        A: same category, >= high_overlap_threshold shared attributes
-        B: same category, exactly 1 shared attribute
-        C: same category, 0 shared attributes
-        D: different category
-
-    If the anchor itself has zero active attributes, A/B/C can't be
-    meaningfully distinguished for it (every same-category candidate
-    would trivially compute as 0 overlap, not because they're genuinely
-    tier C, but because the anchor has nothing to compare against). For
-    such anchors, A/B/C collapse into one "same category" group compared
-    directly against D, the same fallback principle as
-    mine_attribute_aware_triplets, just extended to the tiered case.
-
-    Triplets are mined between EVERY pair of tiers (A-B, A-C, A-D, B-C,
-    B-D, C-D), not just adjacent ones.
+    """Mines triplets encoding a 4-tier closeness ordering, not a flat
+    positive/negative split. Per anchor, closest to farthest: A (same
+    category, >= high_overlap_threshold shared attrs), B (same
+    category, 1 shared), C (same category, 0 shared), D (different
+    category). If the anchor has zero attributes, A/B/C collapse into
+    one "same category" group (same fallback as the binary miner).
+    Triplets are mined between every pair of tiers, not just adjacent.
 
     Args:
         category_labels: (batch,) int tensor.
-        attribute_labels: (batch, num_attributes) tensor, values in
-            {-1, 1} (DeepFashion CAP's own encoding).
+        attribute_labels: (batch, num_attributes) tensor, {-1, 1}.
         high_overlap_threshold: minimum shared-attribute count for tier A.
 
     Returns:
         (anchor_idx, positive_idx, negative_idx): parallel 1D long
-        tensors, one entry per mined triplet, in the "higher tier is the
-        positive, lower tier is the negative" sense for that pair.
-        Directly usable as a pytorch-metric-learning loss function's
-        `indices_tuple` argument (with labels=None).
+        tensors, higher tier = positive, lower tier = negative. Usable
+        directly as a pytorch-metric-learning loss's `indices_tuple`.
     """
     device = category_labels.device
     same_category_other, different_category, shared_attribute_counts, anchor_has_attributes = (
@@ -165,9 +127,8 @@ def mine_graded_attribute_triplets(
         diff_cat_candidates = different_category[anchor_idx].nonzero(as_tuple=True)[0].tolist()
 
         if not anchor_has_attributes[anchor_idx]:
-            # Can't distinguish A/B/C for this anchor; collapse to a
-            # plain same-vs-different split, matching the binary
-            # miner's existing fallback behavior.
+            # Can't distinguish A/B/C here; collapse to same-vs-different,
+            # matching the binary miner's fallback.
             same_cat_candidates = same_category_other[anchor_idx].nonzero(as_tuple=True)[0].tolist()
             for pos in same_cat_candidates:
                 for neg in diff_cat_candidates:

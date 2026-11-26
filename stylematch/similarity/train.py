@@ -1,12 +1,7 @@
-"""Training loop for the similarity engine.
-
-Uses the real SimilarityModel (model.py), real preprocessing, and the
-real pytorch-metric-learning triplet loss, with graded attribute-aware
-mining (attribute_mining.py). Batch construction uses
-CategoryBalancedBatchSampler (sampler.py), needed so every batch
-actually has same-category positives and different-category negatives
-for triplet mining to find.
-"""
+"""Training loop for the similarity engine: SimilarityModel (model.py)
+with pytorch-metric-learning's triplet loss and graded attribute-aware
+mining (attribute_mining.py), batched via CategoryBalancedBatchSampler
+(sampler.py) so every batch has triplet-mineable positives/negatives."""
 
 from pathlib import Path
 
@@ -39,33 +34,21 @@ def run_training_loop(
     category_inclusion_threshold: int | None = None,
     allowed_categories: set[int] | None = None,
 ) -> tuple[SimilarityModel, list[float]]:
-    """Runs a handful of steps end-to-end against a real, category-
-    balanced DeepFashion subset, using the real SimilarityModel and the
-    real triplet loss.
+    """Runs num_steps training steps against a category-balanced
+    DeepFashion subset.
 
     Args:
-        checkpoint_path: if given, saves the trained model's state_dict
-            here after training, so it can be reloaded and evaluated in
-            a later, separate session. If None (default), nothing is
-            saved to disk, only returned in memory.
-        num_workers: DataLoader subprocesses for image loading/decoding.
-        max_images_per_category: forwarded to DeepFashionCAPDataset, see
-            its docstring.
-        weight_by_category_size: forwarded to CategoryBalancedBatchSampler,
-            see its docstring.
-        category_inclusion_threshold: minimum images a category needs to
-            qualify for training at all. None (default) reuses
-            images_per_category for this, same as before this parameter
-            existed. Ignored if allowed_categories is given.
-        allowed_categories: use exactly these category labels, decided
-            externally (e.g. by a caller sharing one train-derived set
-            across training and evaluation) instead of deriving
-            qualification here.
+        checkpoint_path: if given, saves state_dict here after training.
+        max_images_per_category: forwarded to DeepFashionCAPDataset.
+        weight_by_category_size: forwarded to CategoryBalancedBatchSampler.
+        category_inclusion_threshold: minimum images to qualify; None
+            reuses images_per_category. Ignored if allowed_categories
+            is given.
+        allowed_categories: use exactly these labels, decided externally,
+            instead of deriving qualification here.
 
     Returns:
-        (model, losses): the trained model (already in memory, usable
-        immediately without reloading from disk) and the loss recorded
-        at each step.
+        (model, losses): the trained model and per-step loss.
     """
     model = SimilarityModel(embedding_dim=embedding_dim, freeze_until_block=freeze_until_block)
 
@@ -112,19 +95,13 @@ def run_training_loop(
         f"{trainable:,} / {total:,} trainable parameters ({trainable / total:.1%})"
     )
 
-    # Only trainable parameters, not all of model.parameters(): most of
-    # the backbone is frozen now, and handing Adam frozen params would
-    # waste memory on momentum buffers that never get used.
+    # Only trainable params, not all of model.parameters(): most of the
+    # backbone is frozen, and Adam would waste memory on unused buffers.
     trainable_params = [p for p in model.parameters() if p.requires_grad]
     optimizer = torch.optim.Adam(trainable_params, lr=learning_rate)
 
-    # Real triplet loss. Mining uses graded, 4-tier attribute-aware
-    # mining now, not a flat positive/negative split: same-category
-    # pairs with more shared attributes are pushed closer than
-    # same-category pairs with fewer, which are in turn pushed closer
-    # than different-category pairs. A custom miner is used instead of
-    # pytorch-metric-learning's built-in label-based TripletMarginMiner,
-    # since this ordering isn't expressible as a single scalar label.
+    # Custom miner instead of the built-in label-based TripletMarginMiner:
+    # graded 4-tier closeness isn't expressible as a single scalar label.
     loss_fn = losses.TripletMarginLoss(margin=margin)
 
     losses_recorded = []
@@ -150,9 +127,8 @@ def run_training_loop(
 
         optimizer.zero_grad()
         loss.backward()
-        # Total gradient norm across every trainable parameter, not one
-        # hardcoded layer, since there's no single ".weight" that stands
-        # in for "the model."
+        # Total gradient norm across every trainable param, not one
+        # hardcoded layer -- no single ".weight" stands in for the model.
         grad_norm = torch.sqrt(
             sum(p.grad.norm() ** 2 for p in trainable_params if p.grad is not None)
         ).item()

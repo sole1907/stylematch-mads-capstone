@@ -1,14 +1,8 @@
-"""Training loop for the compatibility engine.
-
-Uses the real CompatibilityModel (model.py) and a margin ranking loss
-on whole-outfit scores, not single-embedding triplets: for each real
-outfit in a batch, a negative is built by swapping one of its items
-for an item from a different outfit in the same batch, then the loss
-pushes score_outfit(real) above score_outfit(negative) by at least
-`margin` -- the same margin-based ranking spirit as the similarity
-engine's TripletMarginLoss, applied to outfit-level scores instead of
-embedding distances.
-"""
+"""Training loop for the compatibility engine: CompatibilityModel
+(model.py) with a margin ranking loss on whole-outfit scores. Each
+real outfit's negative swaps one item for an item from another outfit
+in the batch; loss pushes score_outfit(real) above score_outfit(fake)
+by at least `margin`."""
 
 import random
 from pathlib import Path
@@ -24,11 +18,9 @@ from stylematch.config import MODELS_DIR
 
 
 def _identity_collate(batch: list) -> list:
-    """Leaves the batch as a plain list of per-outfit tuples, instead
-    of DataLoader's default collate (which would try to stack
-    variable-length outfits into one tensor and fail). A module-level
-    function, not a lambda: DataLoader's worker processes need to
-    pickle this, and lambdas aren't picklable."""
+    """Leaves the batch as a plain list (default collate would try to
+    stack variable-length outfits and fail). Module-level, not a
+    lambda, since DataLoader workers need to pickle it."""
     return batch
 
 
@@ -52,22 +44,16 @@ def run_training_loop(
     checkpoint_path: Path | None = None,
     num_workers: int = 4,
 ) -> tuple[CompatibilityModel, list[float]]:
-    """Runs a handful of steps end-to-end against real Polyvore
-    outfits, using the real CompatibilityModel and a margin ranking
-    loss between real and swapped-item negative outfits.
+    """Runs num_steps training steps against real Polyvore outfits,
+    with a margin ranking loss between real and swapped-item negatives.
 
     Args:
-        outfits_per_batch: how many outfits per step. Needs to be >= 2,
-            since each outfit's negative is built by borrowing an item
-            from another outfit in the same batch.
-        checkpoint_path: if given, saves the trained model's state_dict
-            here after training. If None (default), nothing is saved
-            to disk, only returned in memory.
-        num_workers: DataLoader subprocesses for image loading/decoding.
+        outfits_per_batch: must be >= 2 (negatives borrow an item from
+            another outfit in the same batch).
+        checkpoint_path: if given, saves state_dict here after training.
 
     Returns:
-        (model, losses): the trained model (already in memory) and the
-        loss recorded at each step.
+        (model, losses): the trained model and per-step loss.
     """
     if outfits_per_batch < 2:
         raise ValueError(f"outfits_per_batch must be >= 2, got {outfits_per_batch}")
@@ -77,11 +63,8 @@ def run_training_loop(
     dataset = PolyvoreOutfitDataset(split="train", transform=model.preprocess_train)
     logger.info(f"Loaded {len(dataset)} outfits (split='train')")
 
-    # Variable-length outfits don't stack into one tensor like
-    # same-shape images do, so the batch stays a plain list of
-    # (item_images, item_ids, category_labels, outfit_id) tuples --
-    # unpacked per-outfit in the loop below, not collated into a
-    # single tensor.
+    # Variable-length outfits don't stack into one tensor; batch stays
+    # a plain list of per-outfit tuples, unpacked in the loop below.
     loader = DataLoader(
         dataset, batch_size=outfits_per_batch, shuffle=True, num_workers=num_workers,
         collate_fn=_identity_collate,
@@ -131,9 +114,8 @@ def run_training_loop(
 
         optimizer.zero_grad()
         loss.backward()
-        # Total gradient norm across every trainable parameter, not one
-        # hardcoded layer, since there's no single ".weight" that
-        # stands in for "the model."
+        # Total gradient norm across every trainable param, not one
+        # hardcoded layer -- no single ".weight" stands in for the model.
         grad_norm = torch.sqrt(
             sum(p.grad.norm() ** 2 for p in trainable_params if p.grad is not None)
         ).item()

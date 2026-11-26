@@ -12,12 +12,9 @@ from stylematch.compatibility.model import CompatibilityModel
 @torch.no_grad()
 def fitb_accuracy(model: CompatibilityModel, dataset: FITBDataset) -> float:
     """For each FITB question, scores all 4 candidates (context +
-    each candidate, via score_outfit) and checks whether the model's
-    highest-scoring candidate is the correct one (always index 0, see
-    dataset.py). Context is embedded once per question, not once per
-    candidate -- the 4 candidates share the same context, so
-    re-running the backbone on it 4 times would be pure waste.
-    """
+    candidate, via score_outfit) and checks the top-scoring one is
+    correct (always index 0). Context embedded once per question, not
+    once per candidate, since all 4 share it."""
     model.eval()
     correct = 0
     for idx in range(len(dataset)):
@@ -37,12 +34,9 @@ def fitb_accuracy(model: CompatibilityModel, dataset: FITBDataset) -> float:
 
 @torch.no_grad()
 def compatibility_auc(model: CompatibilityModel, dataset: CompatibilityDataset) -> float:
-    """Scores every candidate outfit in `dataset` (real and generated
-    negatives) via score_outfit(), then computes ROC-AUC between those
-    scores and the real/fake labels -- how well the model's raw score
-    separates compatible from incompatible outfits, across every
-    possible threshold at once, not just a single pass/fail cutoff.
-    """
+    """Scores every candidate outfit (real + generated negatives) via
+    score_outfit(), then computes ROC-AUC against the real/fake
+    labels -- how well the raw score separates them across thresholds."""
     model.eval()
     scores = []
     labels = []
@@ -60,23 +54,15 @@ def evaluate_compatibility(
     max_fitb_questions: int | None = None,
     max_compat_outfits: int | None = None,
 ) -> dict[str, float]:
-    """Computes both real evaluation metrics against `split`: FITB
-    accuracy and compatibility AUC. Returns a dict directly usable to
-    replace Figure 5's illustrative placeholder numbers with real ones.
+    """Computes both evaluation metrics against `split`: FITB accuracy
+    and compatibility AUC.
 
     Args:
-        max_fitb_questions: caps how many FITB questions to score, in
-            dataset order. None (default) evaluates every question in
-            the split -- the full valid split is 5,000 questions, so
-            capping this is useful for a quick local check before a
-            full-scale run.
-        max_compat_outfits: same capping, for the compatibility (AUC)
-            task's candidate outfits. Balanced across both labels, not
-            a plain first-N slice: the real file is grouped by label
-            (all label=1 rows first, then label=0, confirmed via the
-            real data, see test_compatibility_dataset.py), so a plain
-            slice could silently grab only one label and break AUC
-            (which needs both classes present).
+        max_fitb_questions: caps questions scored, in dataset order.
+            None evaluates the full split (5,000 questions).
+        max_compat_outfits: same capping, but balanced across labels
+            (not a plain first-N slice) -- the real file is grouped by
+            label, so a plain slice could grab only one and break AUC.
     """
     fitb_dataset = FITBDataset(split=split, transform=model.preprocess_val)
     compat_dataset = CompatibilityDataset(split=split, transform=model.preprocess_val)

@@ -18,16 +18,12 @@ from stylematch.config import DEEPFASHION_DIR
 
 NUM_ATTRIBUTES = 1000
 
-# Default preprocessing size, used only when no transform is passed in
-# (every real caller passes the backbone's own preprocessing instead,
-# model.py's preprocess_train/preprocess_val; this is a fallback for
-# tests and ad-hoc use, not something awaiting a future replacement).
+# Fallback preprocessing size when no transform is passed in; real
+# callers always pass the backbone's own preprocessing instead.
 DEFAULT_IMAGE_SIZE = 224
 
-# How many consecutive samples __getitem__ will try before giving up and
-# raising, if it hits unreadable images back to back. Bounds the retry
-# loop so a genuinely broken dataset still fails loudly and quickly,
-# rather than looping through every remaining sample.
+# Consecutive load failures tolerated before __getitem__ gives up and
+# raises, rather than looping through the whole dataset.
 MAX_CONSECUTIVE_LOAD_RETRIES = 20
 
 
@@ -70,10 +66,7 @@ def get_qualifying_categories(
     min_images_per_category: int, split: str = "train", root: Path = DEEPFASHION_DIR
 ) -> set[int]:
     """Category labels with >= min_images_per_category images in
-    `split`. Decide qualification from one split (train) and reuse the
-    same set elsewhere (e.g. evaluation), rather than re-deriving it
-    independently per split.
-    """
+    `split`. Decide once from train, reuse elsewhere."""
     counts: dict[int, int] = {}
     for _, category_label, _ in _iter_annotation_rows(root, split):
         counts[category_label] = counts.get(category_label, 0) + 1
@@ -82,18 +75,8 @@ def get_qualifying_categories(
 
 class DeepFashionCAPDataset(Dataset):
     """PyTorch Dataset over the downloaded DeepFashion CAP subset.
-
-    Interface contract:
-    `__getitem__` returns a single (image, category_label, attribute_label)
-    tuple, one example at a time. Triplet construction for the similarity
-    engine's loss does not happen here, it happens downstream, via a batch
-    sampler that groups multiple images per category into each batch, and
-    an online triplet miner (pytorch-metric-learning) that picks actual
-    anchor/positive/negative triples from within each batch, using category
-    and attribute labels together. Keeping this class single-item keeps it
-    reusable for validation-set retrieval evaluation too, which needs
-    individual embeddings, not triplets.
-    """
+    Returns single (image, category_label, attribute_label) tuples;
+    triplet construction happens downstream, in the batch sampler."""
 
     def __init__(
         self,
@@ -108,42 +91,22 @@ class DeepFashionCAPDataset(Dataset):
     ) -> None:
         """
         Args:
-            root: directory containing the downloaded CAP files (see
-                `scripts/download_deepfashion.py`).
-            split: one of "train", "val", "test", matching the partitions
-                in `list_eval_partition.txt`.
-            transform: image preprocessing/augmentation pipeline, applied
-                to each image before it's returned. Expected to match
-                whatever the chosen backbone (Marqo-FashionCLIP) requires.
-                If None, a minimal placeholder (resize + scale to [0, 1])
-                is used instead.
-            sample_size: cap on how many matching images to load, in
-                file order. Defaults to 100. Pass None to load every
-                image in the split. Ignored if min_images_per_category
-                is set (see below), since the underlying annotation file
-                is clustered by category in blocks, confirmed: the first
-                16 matches are all a single category, so a plain
-                first-N sample can't give a batch sampler the category
-                diversity it needs.
-            min_images_per_category: if set, switches loading from
-                "first `sample_size` matching images" to "collect
-                `num_categories` distinct categories that each have at
-                least this many images." Needed so a category-balanced
-                batch sampler (sampler.py) always has same-category
-                positives and different-category negatives to mine
-                triplets from. None (default) preserves the plain
-                first-N behavior.
-            num_categories: only used when min_images_per_category is
-                set; how many distinct qualifying categories to collect.
-                None means every qualifying category in the split.
-            max_images_per_category: only used when min_images_per_category
-                is set; caps how many images get collected per qualifying
-                category. None (default) means no cap, collect every real
-                image that category has.
-            allowed_categories: use exactly these category labels,
-                decided externally (e.g. via get_qualifying_categories
-                on a different split) instead of re-deriving
-                qualification from this split's own counts.
+            root: directory with the downloaded CAP files.
+            split: one of "train", "val", "test".
+            transform: preprocessing pipeline; a minimal placeholder is
+                used if None.
+            sample_size: cap on images loaded, in file order (ignored
+                if min_images_per_category is set).
+            min_images_per_category: if set, collects num_categories
+                categories with at least this many images each, so a
+                batch sampler always has same/different-category
+                images to mine triplets from.
+            num_categories: how many qualifying categories to collect;
+                None means every qualifying one.
+            max_images_per_category: caps images collected per
+                category; None means no cap.
+            allowed_categories: use exactly these labels, decided
+                externally, instead of re-deriving qualification here.
         """
         if split not in ("train", "val", "test"):
             raise ValueError(f"split must be 'train', 'val', or 'test', got {split!r}")
@@ -181,14 +144,9 @@ class DeepFashionCAPDataset(Dataset):
         max_images_per_category: int | None = None,
         allowed_categories: set[int] | None = None,
     ) -> list[tuple[str, int, list[int]]]:
-        """Collects `num_categories` distinct categories that each have
-        at least `min_images_per_category` images, up to
-        `max_images_per_category` each. If allowed_categories is given,
-        qualification is decided externally instead (e.g. via
-        get_qualifying_categories on a different split) -- every
-        category in allowed_categories found in this split is used,
-        min_images_per_category/num_categories are ignored.
-        """
+        """Collects num_categories categories with >= min_images_per_category
+        images each, up to max_images_per_category each. If
+        allowed_categories is given, that set is used directly instead."""
         by_category: dict[int, list[tuple[str, int, list[int]]]] = {}
         category_counts: dict[int, int] = {}
         previous_category_label = None
@@ -245,22 +203,9 @@ class DeepFashionCAPDataset(Dataset):
         return Image.open(self.root / image_name).convert("RGB")
 
     def __getitem__(self, idx: int) -> tuple[Tensor, int, Tensor]:
-        """
-        Returns:
-            image: float tensor, shape (3, H, W), already preprocessed.
-            category_label: int, index into the category vocabulary
-                (`list_category_cloth.txt`), 0-indexed.
-            attribute_label: int tensor, shape (num_attributes,), values
-                in {-1, 1} per `list_attr_img.txt`'s own encoding
-                (1 = has the attribute, -1 = does not).
-
-        Falls back to the next index (wrapping around),
-        logging a warning each time, bounded by
-        MAX_CONSECUTIVE_LOAD_RETRIES consecutive failures before giving
-        up and raising clearly, since that many in a row means
-        something is fundamentally wrong (bad root path, empty
-        dataset), not an isolated bad file worth skipping past.
-        """
+        """Returns (image, category_label, attribute_label), 0-indexed
+        label into list_category_cloth.txt. Falls back to the next
+        index on load failure, raising after too many in a row."""
         image = None
         category_label, attribute_label = None, None
         last_error: Exception | None = None

@@ -1,14 +1,11 @@
 """Hyperparameter sweep for the compatibility engine: runs training +
-before/after FITB accuracy + AUC evaluation across multiple configs,
-so they can be compared side by side instead of tested one at a time
-by hand. Validation split only, never the test set.
+before/after FITB accuracy + AUC evaluation across multiple configs.
+Validation split only, never test.
 
-AUC drives config selection (run_staged_search's winner-picking), not
-FITB accuracy: AUC is a continuous score ranked across all 10,000
-compatibility outfits, more statistically stable than FITB's coarser
-1-of-4 accuracy over 5,000 questions. FITB accuracy is still recorded
-for every config, for context, just not what picks the winner.
-"""
+AUC drives config selection, not FITB accuracy: it's a continuous
+score over 10,000 outfits, more stable than FITB's coarser 1-of-4
+accuracy over 5,000 questions. FITB is still recorded, just not
+what picks the winner."""
 
 from dataclasses import asdict, dataclass, replace
 from itertools import product
@@ -43,12 +40,9 @@ def build_grid(
     freeze_until_block: list[int] = (8,),
     **fixed_kwargs,
 ) -> list[TrainingConfig]:
-    """Builds every combination (Cartesian product) of the given
-    learning_rate / num_steps / margin / freeze_until_block values as
-    TrainingConfig objects. Any other TrainingConfig field (e.g.
-    outfits_per_batch) can be fixed across the whole grid via
-    fixed_kwargs.
-    """
+    """Cartesian product of learning_rate / num_steps / margin /
+    freeze_until_block as TrainingConfig objects. Other fields can be
+    fixed across the grid via fixed_kwargs."""
     combos = product(learning_rate, num_steps, margin, freeze_until_block)
     return [
         TrainingConfig(
@@ -88,26 +82,19 @@ def run_sweep(
     max_compat_outfits: int | None = None,
 ) -> pd.DataFrame:
     """Runs training + before/after FITB accuracy + AUC for each
-    config in turn.
-
-    Resumable: if `results_path` already has results from a previous
-    run, a config with a matching saved result is reused instead of
-    retrained.
+    config. Resumable: a config already in `results_path` is reused
+    instead of retrained.
 
     Args:
         configs: the hyperparameter combinations to try.
-        results_path: where to save the comparison table as CSV,
-            updated after every config completes, not just at the end.
-            Pass None to skip saving (in-memory only, no resume).
+        results_path: CSV saved after every config. None disables
+            saving and resume.
         max_fitb_questions / max_compat_outfits: forwarded to
-            evaluate_compatibility, for a fast local check before a
-            full-scale run.
+            evaluate_compatibility, for a fast local check.
 
     Returns:
-        One row per config: its hyperparameters, FITB accuracy and AUC
-        before/after training, both improvements, and the final
-        training loss. auc_improvement is what run_staged_search uses
-        to pick a winner, see module docstring for why.
+        One row per config: hyperparameters, before/after FITB + AUC,
+        both improvements, final loss. auc_improvement picks winners.
     """
     existing_results = None
     if results_path is not None:
@@ -177,8 +164,7 @@ def run_sweep(
 
         if results_path is not None:
             # Rewritten after every config, not appended, so the file
-            # is always a valid, complete CSV if a long run gets
-            # interrupted, never a half-written row.
+            # is always a valid, complete CSV if interrupted.
             pd.DataFrame(rows).to_csv(results_path, index=False)
 
     results = pd.DataFrame(rows)
@@ -198,28 +184,23 @@ def run_staged_search(
     max_fitb_questions: int | None = None,
     max_compat_outfits: int | None = None,
 ) -> tuple[TrainingConfig, pd.DataFrame]:
-    """Runs a sequence of small sweeps: each stage varies only the
-    parameter(s) named in that stage's dict, holding everything else
-    at the best config found by the *previous* stage, then that
-    stage's winner (by auc_improvement, not fitb_improvement, see
-    module docstring) gets carried forward
-    automatically.
+    """Runs a sequence of small sweeps: each stage varies only its own
+    named parameter(s), holding everything else at the previous
+    stage's winner (by auc_improvement, see module docstring), then
+    carries that winner forward automatically.
 
     Args:
-        stages: ordered list of dicts, each naming which TrainingConfig
-            field(s) to vary that stage and what values to try.
-        base_config: starting point for every field not yet touched by
-            an earlier stage.
-        results_dir: each stage's full results are saved as their own
-            CSV, plus a final summary CSV recording the winner chosen
-            at each stage.
+        stages: ordered dicts naming which field(s) to vary and what
+            values to try.
+        base_config: starting point for fields no stage has touched yet.
+        results_dir: each stage's results + a final summary CSV are
+            saved here.
         max_fitb_questions / max_compat_outfits: forwarded to
-            run_sweep, for a fast local check before a full-scale run.
+            run_sweep, for a fast local check.
 
     Returns:
-        (best_config, summary): the final TrainingConfig after all
-        stages' winners are applied, and a DataFrame of what was
-        chosen at each stage and why.
+        (best_config, summary) -- final TrainingConfig and a DataFrame
+        of each stage's winner and improvement score.
     """
     current_best = base_config
     summary_rows = []
@@ -274,16 +255,9 @@ def run_staged_search_lite(
     results_dir: Path = REPORTS_DIR / "compatibility_sweep_lite",
 ) -> tuple[TrainingConfig, pd.DataFrame]:
     """Same mechanics as run_staged_search, scaled down for a fast
-    local check: small hyperparameter lists, few training steps, and a
-    small capped eval subset (not the full 5,000 FITB questions /
-    10,000 compatibility outfits). Confirms the search machinery
-    itself works (joint-stage winner carry-forward, resume-on-rerun),
-    not meant to produce trustworthy hyperparameter conclusions --
-    that's what a full-scale run is for.
-
-    Writes to its own results_dir (reports/compatibility_sweep_lite/
-    by default), separate from a real search's results, so local test
-    runs never mix with real results and can be deleted at any time.
+    local check (small grids, few steps, capped eval subset) -- confirms
+    the search machinery works, not meant for real conclusions. Writes
+    to its own results_dir so it never mixes with real results.
     """
     if stages is None:
         stages = [
