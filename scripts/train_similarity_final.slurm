@@ -1,23 +1,14 @@
 #!/bin/bash
-# Final production training for the similarity engine, using the real
-# winning config from the full-scale hyperparameter search. See
-# scripts/train_similarity_final.py for the config and why it's final.
-#
-# Single run, num_steps=100 -- much smaller than the margin/num_steps
-# follow-up sweep (10 configs, up to 500 steps each) that ran in ~3
-# hours, so this should finish in well under an hour. --time=08:00:00
-# is just the account's max per-job cap requested as a safety buffer,
-# not an estimate -- Slurm releases the allocation as soon as the job
-# actually finishes, so there's no cost to requesting more than needed.
-#
-# Same one-time setup as the other similarity SLURM scripts (repo
-# already cloned, venv already built, real DeepFashion data already on
-# this machine) -- nothing new needed if that's already been done once.
+# Final production training for the similarity engine. See
+# scripts/train_similarity_final.py for the config and num_steps.
 #
 # Submit:  sbatch scripts/train_similarity_final.slurm
 # Monitor: squeue -u $USER
+# If it times out: resubmit the same command, it resumes from the
+#          last saved checkpoint rather than starting over.
 # Output:  reports/similarity_final_training_<jobid>.out/.err
-#          models/similarity_final.pt (the saved checkpoint)
+#          models/similarity_final.pt (final checkpoint, written once
+#              training actually completes)
 
 #SBATCH --job-name=stylematch-similarity-final-training
 #SBATCH --account=siads699f26_class
