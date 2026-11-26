@@ -29,3 +29,50 @@ def test_runs_end_to_end_and_loss_changes():
     # identical value, which would indicate a dead/degenerate loss (as
     # the old placeholder silently was, see train.py's git history).
     assert len(set(losses)) > 1
+
+
+def test_resume_continues_from_saved_step_instead_of_restarting(tmp_path):
+    resume_path = tmp_path / "resume.pt"
+
+    _, first_losses = run_training_loop(
+        num_steps=2,
+        categories_per_batch=4,
+        images_per_category=4,
+        num_categories=20,
+        resume_path=resume_path,
+        checkpoint_every=1,
+    )
+    assert resume_path.exists()
+
+    _, resumed_losses = run_training_loop(
+        num_steps=5,
+        categories_per_batch=4,
+        images_per_category=4,
+        num_categories=20,
+        resume_path=resume_path,
+        checkpoint_every=1,
+    )
+
+    # First 2 losses carried over unchanged from the earlier run, not
+    # retrained from step 0 -- only the remaining 3 steps are new.
+    assert resumed_losses[:2] == first_losses
+    assert len(resumed_losses) == 5
+
+
+def test_resume_past_num_steps_is_a_noop(tmp_path):
+    resume_path = tmp_path / "resume.pt"
+    kwargs = dict(
+        num_steps=3,
+        categories_per_batch=4,
+        images_per_category=4,
+        num_categories=20,
+        resume_path=resume_path,
+        checkpoint_every=1,
+    )
+
+    _, first_losses = run_training_loop(**kwargs)
+    # Same num_steps=3 again: start_step (4) > num_steps (3), so no new
+    # training should happen -- the resumed losses come back unchanged.
+    _, second_losses = run_training_loop(**kwargs)
+
+    assert second_losses == first_losses
