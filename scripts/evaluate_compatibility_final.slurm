@@ -13,7 +13,7 @@
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=48G
-#SBATCH --time=02:00:00
+#SBATCH --time=08:00:00
 #SBATCH --output=reports/compatibility_final_evaluation_%j.out
 #SBATCH --error=reports/compatibility_final_evaluation_%j.err
 
