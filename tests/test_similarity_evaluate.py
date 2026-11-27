@@ -110,6 +110,19 @@ def test_evaluate_retrieval_accuracy_runs_end_to_end():
     assert result["num_images"] > 0
 
 
+def test_num_categories_reports_real_allowed_categories_count():
+    """Regression test: num_categories in the result must reflect the
+    real count actually used (len(allowed_categories)), not just echo
+    back the num_categories *parameter* -- caught via a real official
+    evaluation reporting 20 when 21 categories were actually used."""
+    model = SimilarityModel()
+    allowed = {0, 1, 2}  # 3 real category labels, unrelated to num_categories's default of 20
+
+    result = evaluate_retrieval_accuracy(model, split="val", allowed_categories=allowed)
+
+    assert result["num_categories"] == 3
+
+
 def test_max_images_per_category_none_is_uncapped():
     """Default behavior (unset) caps at min_images_per_category, same
     as before this parameter existed. Passing None explicitly should
