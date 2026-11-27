@@ -1,0 +1,24 @@
+2026-11-25 11:07:22.539 -05:00 | INFO     | stylematch.config:<module>:12 - PROJ_ROOT path is: /home/ayansola/stylematch-mads-capstone
+Traceback (most recent call last):
+  File "/home/ayansola/stylematch-mads-capstone/scripts/run_similarity_category_threshold_check.py", line 82, in <module>
+    main()
+  File "/home/ayansola/stylematch-mads-capstone/scripts/run_similarity_category_threshold_check.py", line 60, in main
+    results = run_sweep(configs, results_path=RESULTS_PATH)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ayansola/stylematch-mads-capstone/stylematch/similarity/sweep.py", line 145, in run_sweep
+    before = evaluate_retrieval_accuracy(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ayansola/stylematch-mads-capstone/stylematch/similarity/evaluate.py", line 141, in evaluate_retrieval_accuracy
+    embeddings, category_labels, attribute_labels = compute_embeddings(
+                                                    ^^^^^^^^^^^^^^^^^^^
+  File "/home/ayansola/stylematch-mads-capstone/venv/lib/python3.12/site-packages/torch/utils/_contextlib.py", line 158, in no_grad
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ayansola/stylematch-mads-capstone/stylematch/similarity/evaluate.py", line 40, in compute_embeddings
+    torch.cat(all_embeddings),
+    ^^^^^^^^^^^^^^^^^^^^^^^^^
+ValueError: torch.cat(): expected a non-empty list of Tensors
+
+real	35m25.227s
+user	41m8.172s
+sys	8m40.922s

@@ -1,0 +1,5 @@
+GPU OK: NVIDIA A40
+Official test-set evaluation starting: Fri Nov 27 01:12:33 EST 2026
+[32m2026-11-27 01:12:42.585 -05:00[0m | [1mINFO    [0m | [36m__main__[0m:[36mmain[0m:[36m27[0m - [1mLoaded checkpoint from /home/ayansola/stylematch-mads-capstone/models/similarity_final.pt[0m
+[32m2026-11-27 01:15:26.279 -05:00[0m | [32m[1mSUCCESS [0m | [36m__main__[0m:[36mmain[0m:[36m37[0m - [32m[1mOfficial test-set evaluation: {'accuracy': 0.6634523868560791, 'attribute_aware_accuracy': 0.2213222235441208, 'random_baseline': 0.11178822778818275, 'num_images': 38889, 'num_categories': 20}[0m
+Official test-set evaluation finished: Fri Nov 27 01:15:27 EST 2026

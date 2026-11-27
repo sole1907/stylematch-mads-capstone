@@ -1,0 +1,66 @@
+2026-11-24 17:19:12.995 -05:00 | INFO     | stylematch.config:<module>:12 - PROJ_ROOT path is: /home/ayansola/stylematch-mads-capstone
+Traceback (most recent call last):
+  File "/home/ayansola/stylematch-mads-capstone/scripts/run_similarity_sampling_check.py", line 69, in <module>
+    main()
+  File "/home/ayansola/stylematch-mads-capstone/scripts/run_similarity_sampling_check.py", line 53, in main
+    results = run_sweep(configs, results_path=RESULTS_PATH)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ayansola/stylematch-mads-capstone/stylematch/similarity/sweep.py", line 148, in run_sweep
+    trained_model, losses = run_training_loop(
+                            ^^^^^^^^^^^^^^^^^^
+  File "/home/ayansola/stylematch-mads-capstone/stylematch/similarity/train.py", line 119, in run_training_loop
+    images, category_labels, attribute_labels = next(data_iter)
+                                                ^^^^^^^^^^^^^^^
+  File "/home/ayansola/stylematch-mads-capstone/venv/lib/python3.12/site-packages/torch/utils/data/dataloader.py", line 725, in __next__
+    data = self._next_data()
+           ^^^^^^^^^^^^^^^^^
+  File "/home/ayansola/stylematch-mads-capstone/venv/lib/python3.12/site-packages/torch/utils/data/dataloader.py", line 1501, in _next_data
+    return self._process_data(data, worker_id)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ayansola/stylematch-mads-capstone/venv/lib/python3.12/site-packages/torch/utils/data/dataloader.py", line 1569, in _process_data
+    data.reraise()
+  File "/home/ayansola/stylematch-mads-capstone/venv/lib/python3.12/site-packages/torch/_utils.py", line 804, in reraise
+    raise exception
+RuntimeError: Caught RuntimeError in DataLoader worker process 1.
+Original Traceback (most recent call last):
+  File "/home/ayansola/stylematch-mads-capstone/stylematch/similarity/train.py", line 119, in run_training_loop
+    images, category_labels, attribute_labels = next(data_iter)
+                                                ^^^^^^^^^^^^^^^
+  File "/home/ayansola/stylematch-mads-capstone/venv/lib/python3.12/site-packages/torch/utils/data/dataloader.py", line 725, in __next__
+    data = self._next_data()
+           ^^^^^^^^^^^^^^^^^
+  File "/home/ayansola/stylematch-mads-capstone/venv/lib/python3.12/site-packages/torch/utils/data/dataloader.py", line 1493, in _next_data
+    raise StopIteration
+StopIteration
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/ayansola/stylematch-mads-capstone/stylematch/similarity/dataset.py", line 242, in __getitem__
+    image = self._load_image(try_idx)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ayansola/stylematch-mads-capstone/stylematch/similarity/dataset.py", line 217, in _load_image
+    return Image.open(self.root / image_name).convert("RGB")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ayansola/stylematch-mads-capstone/venv/lib/python3.12/site-packages/PIL/Image.py", line 3654, in open
+    fp = builtins.open(filename, "rb")
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: '/home/ayansola/stylematch-mads-capstone/data/raw/deepfashion/img/Striped_A-line_Dress/img_00000071.jpg'
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/ayansola/stylematch-mads-capstone/venv/lib/python3.12/site-packages/torch/utils/data/_utils/worker.py", line 375, in _worker_loop
+    data = fetcher.fetch(index)  # type: ignore[possibly-undefined]
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/home/ayansola/stylematch-mads-capstone/venv/lib/python3.12/site-packages/torch/utils/data/_utils/fetch.py", line 54, in fetch
+    data = [self.dataset[idx] for idx in possibly_batched_index]
+            ~~~~~~~~~~~~^^^^^
+  File "/home/ayansola/stylematch-mads-capstone/stylematch/similarity/dataset.py", line 254, in __getitem__
+    raise RuntimeError(
+RuntimeError: 20 consecutive samples failed to load starting at index 170499; something is likely wrong with the dataset itself (bad root path, missing files), not an isolated bad image.
+
+
+real	6m48.188s
+user	6m57.212s
+sys	0m58.893s
