@@ -10,6 +10,8 @@ from stylematch.similarity.attribute_mining import DEFAULT_MIN_SHARED_ATTRIBUTES
 from stylematch.similarity.dataset import DeepFashionCAPDataset, get_qualifying_categories
 from stylematch.similarity.model import SimilarityModel
 
+_UNSET = object()
+
 
 @torch.no_grad()
 def compute_embeddings(
@@ -94,6 +96,7 @@ def evaluate_retrieval_accuracy(
     num_workers: int = 4,
     category_inclusion_threshold: int | None = None,
     allowed_categories: set[int] | None = None,
+    max_images_per_category=_UNSET,
 ) -> dict[str, float]:
     """Loads a stratified subset of `split`, embeds it, and returns
     retrieval accuracy under both correctness definitions plus the
@@ -105,6 +108,10 @@ def evaluate_retrieval_accuracy(
             training. Ignored if allowed_categories is given.
         allowed_categories: use exactly these labels, decided externally,
             instead of deriving qualification here.
+        max_images_per_category: caps images embedded per category.
+            Defaults to min_images_per_category (sweep/sanity-check
+            behavior); pass None explicitly for the real, uncapped,
+            official evaluation.
     """
     if allowed_categories is None:
         inclusion_threshold = (
@@ -114,13 +121,16 @@ def evaluate_retrieval_accuracy(
         if num_categories is not None:
             allowed_categories = set(sorted(allowed_categories)[:num_categories])
 
+    if max_images_per_category is _UNSET:
+        max_images_per_category = min_images_per_category
+
     dataset = DeepFashionCAPDataset(
         split=split,
         transform=model.preprocess_val,
         allowed_categories=allowed_categories,
         # Pinned deliberately: this embeds the whole dataset directly,
         # with no batch sampler bounding per-step cost.
-        max_images_per_category=min_images_per_category,
+        max_images_per_category=max_images_per_category,
     )
     embeddings, category_labels, attribute_labels = compute_embeddings(
         model, dataset, batch_size=batch_size, num_workers=num_workers

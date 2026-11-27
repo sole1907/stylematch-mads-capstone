@@ -108,3 +108,19 @@ def test_evaluate_retrieval_accuracy_runs_end_to_end():
     assert 0.0 <= result["random_baseline"] <= 1.0
     assert result["num_categories"] == 10
     assert result["num_images"] > 0
+
+
+def test_max_images_per_category_none_is_uncapped():
+    """Default behavior (unset) caps at min_images_per_category, same
+    as before this parameter existed. Passing None explicitly should
+    embed strictly more images -- the real, uncapped, official-eval case."""
+    model = SimilarityModel()
+
+    capped = evaluate_retrieval_accuracy(
+        model, split="val", num_categories=5, min_images_per_category=4
+    )
+    uncapped = evaluate_retrieval_accuracy(
+        model, split="val", num_categories=5, min_images_per_category=4, max_images_per_category=None
+    )
+
+    assert uncapped["num_images"] > capped["num_images"]
