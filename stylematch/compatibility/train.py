@@ -43,6 +43,8 @@ def run_training_loop(
     margin: float = 0.2,
     checkpoint_path: Path | None = None,
     num_workers: int = 4,
+    resume_path: Path | None = None,
+    checkpoint_every: int | None = None,
 ) -> tuple[CompatibilityModel, list[float]]:
     """Runs num_steps training steps against real Polyvore outfits,
     with a margin ranking loss between real and swapped-item negatives.
@@ -50,7 +52,12 @@ def run_training_loop(
     Args:
         outfits_per_batch: must be >= 2 (negatives borrow an item from
             another outfit in the same batch).
-        checkpoint_path: if given, saves state_dict here after training.
+        checkpoint_path: if given, saves a plain state_dict here after
+            training (the format other code loads the model from).
+        resume_path: if this file exists, resumes model/optimizer/step
+            state from it instead of starting at step 0.
+        checkpoint_every: if given (with resume_path), saves resume
+            state to resume_path every N steps, not just at the end.
 
     Returns:
         (model, losses): the trained model and per-step loss.
@@ -86,9 +93,20 @@ def run_training_loop(
     optimizer = torch.optim.Adam(trainable_params, lr=learning_rate)
 
     losses_recorded = []
+    start_step = 1
+    if resume_path is not None and Path(resume_path).exists():
+        resume_state = torch.load(resume_path, map_location=model.device)
+        model.load_state_dict(resume_state["model_state_dict"])
+        optimizer.load_state_dict(resume_state["optimizer_state_dict"])
+        losses_recorded = resume_state["losses_recorded"]
+        start_step = resume_state["step"] + 1
+        logger.info(f"Resumed from {resume_path} at step {start_step - 1}/{num_steps}")
+
+    if start_step > num_steps:
+        logger.info(f"Already completed {start_step - 1}/{num_steps} steps, nothing to resume.")
     data_iter = iter(loader)
     epoch = 1
-    for step in range(1, num_steps + 1):
+    for step in range(start_step, num_steps + 1):
         try:
             batch = next(data_iter)
         except StopIteration:
@@ -127,10 +145,25 @@ def run_training_loop(
             f"loss={loss.item():.4f} | grad_norm={grad_norm:.4f} | weights updated"
         )
 
-    logger.success(
-        f"Done. Loss went {losses_recorded[0]:.4f} -> {losses_recorded[-1]:.4f} "
-        f"over {num_steps} steps."
-    )
+        if checkpoint_every is not None and resume_path is not None and step % checkpoint_every == 0:
+            resume_path = Path(resume_path)
+            resume_path.parent.mkdir(parents=True, exist_ok=True)
+            torch.save(
+                {
+                    "model_state_dict": model.state_dict(),
+                    "optimizer_state_dict": optimizer.state_dict(),
+                    "step": step,
+                    "losses_recorded": losses_recorded,
+                },
+                resume_path,
+            )
+            logger.info(f"Resume checkpoint saved at step {step}/{num_steps} -> {resume_path}")
+
+    if losses_recorded:
+        logger.success(
+            f"Done. Loss went {losses_recorded[0]:.4f} -> {losses_recorded[-1]:.4f} "
+            f"over {len(losses_recorded)} steps."
+        )
 
     if checkpoint_path is not None:
         checkpoint_path = Path(checkpoint_path)
