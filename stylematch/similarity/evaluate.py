@@ -10,9 +10,6 @@ from stylematch.similarity.attribute_mining import DEFAULT_MIN_SHARED_ATTRIBUTES
 from stylematch.similarity.dataset import DeepFashionCAPDataset, get_qualifying_categories
 from stylematch.similarity.model import SimilarityModel
 
-# Sentinel distinguishing "caller didn't pass max_images_per_category"
-# (old behavior: reuse min_images_per_category as the cap) from
-# "caller explicitly passed None" (uncapped, the real test-set case).
 _UNSET = object()
 
 
