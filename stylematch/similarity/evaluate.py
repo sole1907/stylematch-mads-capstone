@@ -142,5 +142,5 @@ def evaluate_retrieval_accuracy(
         ),
         "random_baseline": random_baseline_accuracy(category_labels),
         "num_images": len(dataset),
-        "num_categories": num_categories,
+        "num_categories": len(allowed_categories),
     }
