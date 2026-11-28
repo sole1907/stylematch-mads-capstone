@@ -14,17 +14,23 @@
    filter out candidates matching any of those categories. Real
    inference.
 4. Compatibility (infer): same, but each garment's category is
-   inferred from the similarity engine's top-5 nearest neighbors
-   (majority vote), mapped from DeepFashion's 21 categories to
-   Polyvore's 11 via DEEPFASHION_TO_POLYVORE. Exploratory -- this
-   inference step isn't separately validated, unlike the labeled
-   tab's user-stated category. Real inference.
-5. Stretch goal: African garments, both engines, category inferred
-   the same way as tab 4. Not wired yet, lowest priority.
+   inferred directly in Polyvore's own 11-category vocabulary --
+   similarity-engine neighbors against a Polyvore catalog, majority
+   vote. No DeepFashion-to-Polyvore mapping step, and no blind spot
+   for categories DeepFashion doesn't have (shoes, bags, jewellery,
+   etc.). Exploratory -- this inference step isn't separately
+   validated, unlike the labeled tab's user-stated category. Real
+   inference.
+5. Stretch goal: African garments. Category inferred by similarity
+   against the AFRIFASHION catalog (its own 8-class vocabulary), then
+   mapped to the closest Polyvore category via AFRIFASHION_TO_POLYVORE
+   so "compatible" results can be drawn from the much richer Polyvore
+   catalog instead of the 1,600-image African-only one. Real inference.
 
 Requires models/similarity_final.pt, models/compatibility_final.pt,
-models/similarity_catalog.pt, models/compatibility_catalog.pt to
-already exist (see scripts/train_*_final.py, scripts/build_*_catalog.py).
+models/similarity_catalog.pt, models/compatibility_catalog.pt,
+models/polyvore_similarity_catalog.pt to already exist (see
+scripts/train_*_final.py, scripts/build_*_catalog.py).
 
 Run directly:
     python app/app.py
@@ -47,44 +53,19 @@ INFER_NEIGHBORS = 5
 EMBEDDING_DIM = 256
 FREEZE_UNTIL_BLOCK = 10
 
-# Real 21 DeepFashion categories (see get_qualifying_categories(1000,
-# split="train")) mapped to the closest real Polyvore semantic
-# category -- checked against both real category lists, not guessed.
-# DeepFashion CAP has no accessory/footwear categories, so several
-# Polyvore categories (bags, shoes, hats, etc.) are never a mapping
-# target here -- expected, not an oversight.
-DEEPFASHION_TO_POLYVORE = {
-    "Blazer": "outerwear",
-    "Blouse": "tops",
-    "Cardigan": "outerwear",
-    "Coat": "outerwear",
-    "Cutoffs": "bottoms",
-    "Dress": "all-body",
-    "Hoodie": "tops",
-    "Jacket": "outerwear",
-    "Jeans": "bottoms",
-    "Joggers": "bottoms",
-    "Jumpsuit": "all-body",
-    "Kimono": "outerwear",
-    "Leggings": "bottoms",
-    "Romper": "all-body",
-    "Shorts": "bottoms",
-    "Skirt": "bottoms",
-    "Sweater": "tops",
-    "Sweatpants": "bottoms",
-    "Tank": "tops",
-    "Tee": "tops",
-    "Top": "tops",
+# AFRIFASHION's 8 classes mapped to the closest real Polyvore semantic
+# category, so the stretch tab's "compatible" search can use the much
+# richer Polyvore catalog instead of the 1,600-image African-only one.
+AFRIFASHION_TO_POLYVORE = {
+    "African_Blouse": "tops",
+    "African_Shirts": "tops",
+    "Agbada": "all-body",
+    "Buba and Trouser": "all-body",
+    "Gele": "hats",
+    "Gown": "all-body",
+    "Skirt and Blouse": "all-body",
+    "Wrapper and Blouse": "all-body",
 }
-
-
-def _load_deepfashion_category_names() -> list[str]:
-    """0-indexed, same order as the category labels used everywhere
-    else (list_category_cloth.txt: a count, a header, then one
-    '<name> <type>' line per category)."""
-    with open(DEEPFASHION_DIR / "list_category_cloth.txt") as f:
-        lines = f.readlines()[2:]
-    return [line.split()[0] for line in lines]
 
 
 similarity_model = SimilarityModel(embedding_dim=EMBEDDING_DIM, freeze_until_block=FREEZE_UNTIL_BLOCK)
@@ -92,10 +73,15 @@ similarity_model.load_state_dict(
     torch.load(MODELS_DIR / "similarity_final.pt", map_location=similarity_model.device)
 )
 similarity_catalog = load_catalog(MODELS_DIR / "similarity_catalog.pt")
-similarity_id_to_category = dict(
-    zip(similarity_catalog["identifiers"], similarity_catalog["category_labels"].tolist())
+
+# Polyvore items embedded via the SIMILARITY engine (see
+# scripts/build_polyvore_similarity_catalog.py) -- lets category
+# inference search Polyvore's own native 11-category vocabulary
+# directly, with no DeepFashion-to-Polyvore mapping step.
+polyvore_similarity_catalog = load_catalog(MODELS_DIR / "polyvore_similarity_catalog.pt")
+polyvore_similarity_id_to_category = dict(
+    zip(polyvore_similarity_catalog["identifiers"], polyvore_similarity_catalog["category_labels"].tolist())
 )
-deepfashion_category_names = _load_deepfashion_category_names()
 
 compatibility_model = CompatibilityModel(embedding_dim=EMBEDDING_DIM, freeze_until_block=FREEZE_UNTIL_BLOCK)
 compatibility_model.load_state_dict(
@@ -103,14 +89,12 @@ compatibility_model.load_state_dict(
 )
 compatibility_catalog = load_catalog(MODELS_DIR / "compatibility_catalog.pt")
 
-# Stretch goal: both share the same 8-class AFRIFASHION_CLASSES label
-# space (both built from AfrifashionDataset), so no cross-dataset
-# mapping is needed here, unlike DeepFashion-to-Polyvore above.
+# Stretch goal: similarity search stays within AFRIFASHION's own
+# 8-class label space (both catalogs built from AfrifashionDataset).
 afrifashion_similarity_catalog = load_catalog(MODELS_DIR / "afrifashion_similarity_catalog.pt")
 afrifashion_similarity_id_to_category = dict(
     zip(afrifashion_similarity_catalog["identifiers"], afrifashion_similarity_catalog["category_labels"].tolist())
 )
-afrifashion_compatibility_catalog = load_catalog(MODELS_DIR / "afrifashion_compatibility_catalog.pt")
 
 
 def _filter_none(*images) -> list[Image.Image]:
@@ -165,21 +149,19 @@ def find_compatible_labeled(image1, category1, image2, category2, image3, catego
 
 
 @torch.no_grad()
-def infer_category(image: Image.Image) -> str | None:
+def infer_category(image: Image.Image) -> str:
     """Embeds via the similarity engine, finds its top-5 nearest
-    DeepFashion neighbors, takes a majority vote of their category,
-    maps that to the closest Polyvore category. None if the winning
-    DeepFashion category has no real Polyvore mapping (shouldn't
-    happen given the real mapping covers all 21 categories, but
-    guards against it rather than crashing)."""
+    neighbors in the Polyvore similarity catalog, takes a majority
+    vote of their category. Already in Polyvore's native vocabulary,
+    so no mapping step -- and no blind spot for categories DeepFashion
+    doesn't have (shoes, bags, jewellery, etc.)."""
     tensor = similarity_model.preprocess_val(image).unsqueeze(0)
     query_embedding = similarity_model(tensor)[0].cpu()
-    neighbors = search_by_similarity(query_embedding, similarity_catalog, top_k=INFER_NEIGHBORS)
+    neighbors = search_by_similarity(query_embedding, polyvore_similarity_catalog, top_k=INFER_NEIGHBORS)
 
-    neighbor_labels = [similarity_id_to_category[image_name] for image_name, _ in neighbors]
+    neighbor_labels = [polyvore_similarity_id_to_category[item_id] for item_id, _ in neighbors]
     majority_label = Counter(neighbor_labels).most_common(1)[0][0]
-    deepfashion_name = deepfashion_category_names[majority_label]
-    return DEEPFASHION_TO_POLYVORE.get(deepfashion_name)
+    return SEMANTIC_CATEGORIES[majority_label]
 
 
 @torch.no_grad()
@@ -189,11 +171,9 @@ def find_compatible_infer(image1, image2, image3):
         return [], ""
 
     inferred = [infer_category(img) for img in images]
-    inferred_display = ", ".join(
-        f"Garment {i + 1}: {cat or 'unknown'}" for i, cat in enumerate(inferred)
-    )
-    exclude = {CATEGORY_TO_LABEL[cat] for cat in inferred if cat}
-    results = _find_compatible(images, exclude_category_labels=exclude or None)
+    inferred_display = ", ".join(f"Garment {i + 1}: {cat}" for i, cat in enumerate(inferred))
+    exclude = {CATEGORY_TO_LABEL[cat] for cat in inferred}
+    results = _find_compatible(images, exclude_category_labels=exclude)
     return results, inferred_display
 
 
@@ -206,9 +186,8 @@ def _placeholder_results(image1, image2, image3) -> list:
 @torch.no_grad()
 def infer_afrifashion_category(image: Image.Image) -> str:
     """Same majority-vote mechanism as infer_category, against the
-    AFRIFASHION similarity catalog instead of DeepFashion's -- no
-    DEEPFASHION_TO_POLYVORE-style mapping needed, since both African
-    catalogs already share the same 8-class label space."""
+    AFRIFASHION similarity catalog -- returns one of AFRIFASHION_CLASSES,
+    not a Polyvore category (see AFRIFASHION_TO_POLYVORE for that)."""
     tensor = similarity_model.preprocess_val(image).unsqueeze(0)
     query_embedding = similarity_model(tensor)[0].cpu()
     neighbors = search_by_similarity(query_embedding, afrifashion_similarity_catalog, top_k=INFER_NEIGHBORS)
@@ -232,19 +211,24 @@ def find_similar_and_compatible_african(image):
     ]
 
     inferred = infer_afrifashion_category(image)
-    exclude = {AFRIFASHION_CLASSES.index(inferred)}
+    polyvore_category = AFRIFASHION_TO_POLYVORE[inferred]
+    exclude = {CATEGORY_TO_LABEL[polyvore_category]}
 
+    # Compatible search runs against the main Polyvore catalog, not
+    # the 1,600-image African-only one -- richer candidate pool, once
+    # the inferred African category is mapped into Polyvore's space.
     compat_tensor = compatibility_model.preprocess_val(image).unsqueeze(0)
     compat_embedding = compatibility_model(compat_tensor).cpu()
     compat_results = search_by_compatibility(
-        compat_embedding, afrifashion_compatibility_catalog, top_k=TOP_K, exclude_category_labels=exclude
+        compat_embedding, compatibility_catalog, top_k=TOP_K, exclude_category_labels=exclude
     )
     compat_gallery = [
-        (Image.open(AFRIFASHION_DIR / name).convert("RGB"), f"score: {score:.3f}")
-        for name, score in compat_results
+        (Image.open(POLYVORE_DIR / "images" / f"{item_id}.jpg").convert("RGB"), f"score: {score:.3f}")
+        for item_id, score in compat_results
     ]
 
-    return similar_gallery, compat_gallery, f"Inferred category: {inferred}"
+    inferred_display = f"Inferred category: {inferred} (Polyvore: {polyvore_category})"
+    return similar_gallery, compat_gallery, inferred_display
 
 
 with gr.Blocks(title="StyleMatch") as demo:
