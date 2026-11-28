@@ -9,9 +9,10 @@
    one -- and closer to the FITB task we actually measured accuracy
    on, which always used multiple context items, not isolated pairs.
    Real inference.
-3. Compatibility (labeled): same, plus a category dropdown (the
-   user states the NEW garment's category) to filter same-category
-   candidates out before ranking. Real inference.
+3. Compatibility (labeled): same, plus a category dropdown per
+   garment (the user states each uploaded item's own category) to
+   filter out candidates matching any of those categories. Real
+   inference.
 4. Compatibility (infer): same, but the category is inferred from
    the similarity engine's nearest neighbors instead of asked for.
    Not wired yet -- needs a DeepFashion-to-Polyvore category mapping.
@@ -93,9 +94,15 @@ def find_compatible_naive(image1, image2, image3) -> list:
     return _find_compatible(_filter_none(image1, image2, image3))
 
 
-def find_compatible_labeled(image1, image2, image3, category_name: str) -> list:
-    exclude = {CATEGORY_TO_LABEL[category_name]} if category_name else None
-    return _find_compatible(_filter_none(image1, image2, image3), exclude_category_labels=exclude)
+def find_compatible_labeled(image1, category1, image2, category2, image3, category3) -> list:
+    """Each garment gets its own category -- excludes candidates
+    matching ANY of them, not just one shared category (a shirt +
+    pants upload needs both "tops" and "bottoms" excluded, not just
+    whichever one a single shared dropdown happened to hold)."""
+    pairs = [(image1, category1), (image2, category2), (image3, category3)]
+    images = _filter_none(*(img for img, _ in pairs))
+    exclude = {CATEGORY_TO_LABEL[cat] for img, cat in pairs if img is not None and cat}
+    return _find_compatible(images, exclude_category_labels=exclude or None)
 
 
 def _placeholder_results(image1, image2, image3) -> list:
@@ -137,19 +144,31 @@ with gr.Blocks(title="StyleMatch") as demo:
 
     with gr.Tab("Compatibility (labeled)"):
         gr.Markdown(
-            f"Upload one, two, or three garments and tell us the NEW item's category, see the "
-            f"top-{TOP_K} items to add, excluding items from that same category."
+            f"Upload one, two, or three garments and tell us EACH one's own category, see the "
+            f"top-{TOP_K} items to add, excluding items from any of those same categories."
         )
         with gr.Row():
-            compat_labeled_input1 = gr.Image(type="pil", label="Garment 1")
-            compat_labeled_input2 = gr.Image(type="pil", label="Garment 2 (optional)")
-            compat_labeled_input3 = gr.Image(type="pil", label="Garment 3 (optional)")
-        compat_labeled_category = gr.Dropdown(choices=SEMANTIC_CATEGORIES, label="New item's category")
+            with gr.Column():
+                compat_labeled_input1 = gr.Image(type="pil", label="Garment 1")
+                compat_labeled_category1 = gr.Dropdown(choices=SEMANTIC_CATEGORIES, label="Garment 1's category")
+            with gr.Column():
+                compat_labeled_input2 = gr.Image(type="pil", label="Garment 2 (optional)")
+                compat_labeled_category2 = gr.Dropdown(choices=SEMANTIC_CATEGORIES, label="Garment 2's category")
+            with gr.Column():
+                compat_labeled_input3 = gr.Image(type="pil", label="Garment 3 (optional)")
+                compat_labeled_category3 = gr.Dropdown(choices=SEMANTIC_CATEGORIES, label="Garment 3's category")
         compat_labeled_button = gr.Button("Find compatible items")
         compat_labeled_output = gr.Gallery(label="Top matches", columns=TOP_K, object_fit="contain", allow_preview=False)
         compat_labeled_button.click(
             fn=find_compatible_labeled,
-            inputs=[compat_labeled_input1, compat_labeled_input2, compat_labeled_input3, compat_labeled_category],
+            inputs=[
+                compat_labeled_input1,
+                compat_labeled_category1,
+                compat_labeled_input2,
+                compat_labeled_category2,
+                compat_labeled_input3,
+                compat_labeled_category3,
+            ],
             outputs=compat_labeled_output,
         )
 
