@@ -5,15 +5,20 @@ and data flow work before any real model call exists.
 
 5 tabs, matching the planned build order:
 1. Similarity: upload 1 image -> top-7 similar items.
-2. Compatibility (naive): upload 1 garment -> top-7 compatible items,
-   no category filtering.
+2. Compatibility (naive): upload 1 OR MORE garments (e.g. a shirt
+   and pants already picked out) -> top-7 compatible items to add,
+   no category filtering. score_outfit() takes any number >= 2 total
+   items (context + candidate), so more context is just as valid as
+   one -- and closer to the FITB task we actually measured accuracy
+   on, which always used multiple context items, not isolated pairs.
 3. Compatibility (labeled): same, plus a category dropdown (the
-   user states the garment's category) to filter same-category
+   user states the NEW garment's category) to filter same-category
    candidates out before ranking.
 4. Compatibility (infer): same, but the category is inferred from
    the similarity engine's nearest neighbors instead of asked for.
 5. Stretch goal: African garments, both engines, category inferred
-   the same way as tab 4.
+   the same way as tab 4. Kept single-image for simplicity -- lowest
+   priority, time-permitting only.
 
 Run directly:
     python app/app.py
@@ -26,10 +31,16 @@ from stylematch.compatibility.dataset import SEMANTIC_CATEGORIES
 TOP_K = 7
 
 
-def _placeholder_results(*images) -> list:
+def _placeholder_results(images) -> list:
     """Not wired to a model yet -- just echoes the upload(s) back so
-    the gallery/layout can be checked end-to-end."""
-    return [img for img in images if img is not None]
+    the gallery/layout can be checked end-to-end. Handles both a
+    single gr.Image value and a gr.Gallery value (list of images, or
+    list of (image, caption) tuples)."""
+    if images is None:
+        return []
+    if not isinstance(images, list):
+        images = [images]
+    return [img[0] if isinstance(img, tuple) else img for img in images]
 
 
 with gr.Blocks(title="StyleMatch") as demo:
@@ -45,8 +56,13 @@ with gr.Blocks(title="StyleMatch") as demo:
         )
 
     with gr.Tab("Compatibility (naive)"):
-        gr.Markdown(f"Upload a garment, see its top-{TOP_K} compatible items. No category filtering.")
-        compat_naive_input = gr.Image(type="pil", label="Upload a garment")
+        gr.Markdown(
+            f"Upload one or more garments you already have (e.g. a shirt and pants), see the "
+            f"top-{TOP_K} items to add. No category filtering."
+        )
+        compat_naive_input = gr.Gallery(
+            label="Upload your garment(s)", interactive=True, type="pil", sources=["upload"]
+        )
         compat_naive_button = gr.Button("Find compatible items")
         compat_naive_output = gr.Gallery(label="Top matches", columns=TOP_K)
         compat_naive_button.click(
@@ -55,11 +71,13 @@ with gr.Blocks(title="StyleMatch") as demo:
 
     with gr.Tab("Compatibility (labeled)"):
         gr.Markdown(
-            f"Upload a garment and tell us its category, see its top-{TOP_K} compatible items, "
-            "excluding items from the same category."
+            f"Upload one or more garments and tell us the NEW item's category, see the top-{TOP_K} "
+            "items to add, excluding items from that same category."
         )
-        compat_labeled_input = gr.Image(type="pil", label="Upload a garment")
-        compat_labeled_category = gr.Dropdown(choices=SEMANTIC_CATEGORIES, label="Garment category")
+        compat_labeled_input = gr.Gallery(
+            label="Upload your garment(s)", interactive=True, type="pil", sources=["upload"]
+        )
+        compat_labeled_category = gr.Dropdown(choices=SEMANTIC_CATEGORIES, label="New item's category")
         compat_labeled_button = gr.Button("Find compatible items")
         compat_labeled_output = gr.Gallery(label="Top matches", columns=TOP_K)
         compat_labeled_button.click(
@@ -68,11 +86,13 @@ with gr.Blocks(title="StyleMatch") as demo:
 
     with gr.Tab("Compatibility (infer)"):
         gr.Markdown(
-            f"Upload a garment, category inferred automatically (via the similarity engine's "
-            f"nearest neighbors), see its top-{TOP_K} compatible items. Exploratory -- category "
-            "inference isn't separately validated."
+            f"Upload one or more garments, category inferred automatically (via the similarity "
+            f"engine's nearest neighbors), see the top-{TOP_K} items to add. Exploratory -- "
+            "category inference isn't separately validated."
         )
-        compat_infer_input = gr.Image(type="pil", label="Upload a garment")
+        compat_infer_input = gr.Gallery(
+            label="Upload your garment(s)", interactive=True, type="pil", sources=["upload"]
+        )
         compat_infer_button = gr.Button("Find compatible items")
         compat_infer_category = gr.Textbox(label="Inferred category", interactive=False)
         compat_infer_output = gr.Gallery(label="Top matches", columns=TOP_K)

@@ -22,9 +22,26 @@ pip install -r requirements.txt
 See [`DATA_ACCESS.md`](DATA_ACCESS.md) for dataset sources, access methods,
 and license restrictions.
 
+## Demo app
+
+A Gradio demo app lets you try both engines interactively (upload a garment,
+see similar/compatible items). Requires the trained checkpoints
+(`models/similarity_final.pt`, `models/compatibility_final.pt`) to already
+exist locally -- not committed to the repo, see `scripts/train_similarity_final.py`
+and `scripts/train_compatibility_final.py`.
+
+```bash
+python app/app.py
+```
+
+Opens at `http://127.0.0.1:7860` by default.
+
 ## Project Organization
 
 ```
+├── app                <- Gradio demo app (see "Demo app" section above)
+│   └── app.py
+│
 ├── LICENSE            <- Open-source license if one is chosen
 ├── Makefile           <- Makefile with convenience commands like `make data` or `make train`
 ├── README.md          <- The top-level README for developers using this project.
