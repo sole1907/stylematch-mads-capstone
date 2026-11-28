@@ -116,3 +116,66 @@ def build_catalog(
         output_path,
     )
     logger.success(f"Saved catalog ({len(identifiers)} items) to {output_path}")
+
+
+def load_catalog(path: Path) -> dict:
+    """Loads a catalog saved by build_catalog()."""
+    return torch.load(path, map_location="cpu")
+
+
+def search_by_similarity(query_embedding: Tensor, catalog: dict, top_k: int = 7) -> list[tuple[str, float]]:
+    """Ranks catalog entries by cosine similarity to query_embedding
+    (dot product, since embeddings are L2-normalized). Returns the
+    top_k (identifier, score) pairs, highest first."""
+    scores = catalog["embeddings"] @ query_embedding
+    k = min(top_k, scores.numel())
+    top_scores, top_indices = scores.topk(k)
+    identifiers = catalog["identifiers"]
+    return [(identifiers[i], top_scores[j].item()) for j, i in enumerate(top_indices.tolist())]
+
+
+def search_by_compatibility(
+    context_embeddings: Tensor,
+    catalog: dict,
+    top_k: int = 7,
+    exclude_category_labels: set[int] | None = None,
+) -> list[tuple[str, float]]:
+    """Ranks catalog candidates by CompatibilityModel.score_outfit's
+    metric (mean pairwise cosine similarity across context + one
+    candidate), vectorized across the whole catalog at once instead
+    of scoring one candidate at a time.
+
+    For k context items + 1 candidate (k+1 total), the pairwise sum
+    splits into two parts: the context-context pairs (fixed, same
+    for every candidate) and the k candidate-context pairs (the only
+    part that changes per candidate) -- computed directly rather than
+    calling score_outfit per candidate. Reduces to plain cosine
+    similarity when k=1 (no context-context pairs exist).
+
+    Args:
+        exclude_category_labels: catalog entries with these labels
+            are excluded before ranking (e.g. don't suggest another
+            top when the query is a top).
+    """
+    k = context_embeddings.shape[0]
+    context_sim_matrix = context_embeddings @ context_embeddings.T
+    # Sum of the upper triangle (excl. diagonal) = sum of all distinct
+    # context-context pairs. 0 when k=1 (no pairs within one item).
+    context_pairwise_sum = (context_sim_matrix.sum() - context_sim_matrix.trace()) / 2
+
+    catalog_embeddings = catalog["embeddings"]
+    candidate_context_sum = (catalog_embeddings @ context_embeddings.T).sum(dim=1)
+
+    num_pairs = k * (k + 1) // 2  # pairs among k+1 total items
+    scores = (context_pairwise_sum + candidate_context_sum) / num_pairs
+
+    if exclude_category_labels:
+        excluded = torch.tensor(
+            [label.item() in exclude_category_labels for label in catalog["category_labels"]]
+        )
+        scores = scores.masked_fill(excluded, -float("inf"))
+
+    k_eff = min(top_k, (scores > -float("inf")).sum().item())
+    top_scores, top_indices = scores.topk(k_eff)
+    identifiers = catalog["identifiers"]
+    return [(identifiers[i], top_scores[j].item()) for j, i in enumerate(top_indices.tolist())]
