@@ -11,6 +11,7 @@ import pytest
 from stylematch.compatibility.dataset import (
     CompatibilityDataset,
     FITBDataset,
+    PolyvoreItemDataset,
     PolyvoreOutfitDataset,
     _build_outfit_index,
     _resolve_composite_id,
@@ -58,6 +59,32 @@ def test_fitb_dataset_shapes_and_correct_index():
     assert correct_index == 0
     assert context_images[0].shape == (3, 224, 224)
     assert candidate_images[0].shape == (3, 224, 224)
+
+
+def test_item_dataset_returns_unique_items_only():
+    """An item can appear in multiple outfits; the catalog dataset
+    should list it once, not once per outfit it belongs to."""
+    outfit_dataset = PolyvoreOutfitDataset(split="valid")
+    all_item_ids = [item_id for i in range(len(outfit_dataset)) for item_id in outfit_dataset[i][1]]
+
+    item_dataset = PolyvoreItemDataset(split="valid")
+    assert len(item_dataset) == len(set(all_item_ids))
+    assert len(item_dataset.item_ids) == len(set(item_dataset.item_ids))
+
+
+def test_item_dataset_shapes():
+    dataset = PolyvoreItemDataset(split="valid")
+    assert len(dataset) > 0
+
+    image, category_label, item_id = dataset[0]
+    assert image.shape == (3, 224, 224)
+    assert isinstance(category_label, int)
+    assert isinstance(item_id, str)
+
+
+def test_item_dataset_invalid_split_raises():
+    with pytest.raises(ValueError):
+        PolyvoreItemDataset(split="not_a_real_split")
 
 
 def test_compatibility_dataset_labels_are_binary():

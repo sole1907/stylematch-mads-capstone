@@ -147,6 +147,55 @@ class PolyvoreOutfitDataset(Dataset):
         ) from last_error
 
 
+class PolyvoreItemDataset(Dataset):
+    """PyTorch Dataset over individual items (not outfits) -- every
+    unique item appearing in `split`'s outfits, each returned once.
+    For catalog-building (one embedding per garment), not training."""
+
+    def __init__(
+        self,
+        root: Path = POLYVORE_DIR,
+        split: str = "train",
+        transform=None,
+    ) -> None:
+        """
+        Args:
+            root: same as `PolyvoreOutfitDataset`.
+            split: one of "train", "valid", "test".
+            transform: same as `PolyvoreOutfitDataset`.
+        """
+        if split not in VALID_SPLITS:
+            raise ValueError(f"split must be one of {VALID_SPLITS}, got {split!r}")
+        self.root = Path(root)
+        self.transform = transform
+        self.metadata = _load_item_metadata(self.root)
+
+        seen = set()
+        self.item_ids = []
+        for outfit in _load_outfits(self.root, split):
+            for item in outfit["items"]:
+                item_id = item["item_id"]
+                if item_id not in seen:
+                    seen.add(item_id)
+                    self.item_ids.append(item_id)
+
+    def __len__(self) -> int:
+        return len(self.item_ids)
+
+    def __getitem__(self, idx: int) -> tuple[Tensor, int, str]:
+        """
+        Returns:
+            image: preprocessed item image, shape (3, H, W).
+            category_label: from `semantic_category` in
+                `polyvore_item_metadata.json`.
+            item_id: the real Polyvore item ID.
+        """
+        item_id = self.item_ids[idx]
+        image = _load_and_transform_image(self.root, self.transform, item_id)
+        category_label = CATEGORY_TO_LABEL[self.metadata[item_id]["semantic_category"]]
+        return image, category_label, item_id
+
+
 class FITBDataset(Dataset):
     """PyTorch Dataset over the fill-in-the-blank eval task: one
     question per `__getitem__` call, context items plus 4 answer
