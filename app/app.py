@@ -118,7 +118,7 @@ with gr.Blocks(title="StyleMatch") as demo:
         gr.Markdown(f"Upload a garment, see its top-{TOP_K} most similar items.")
         similarity_input = gr.Image(type="pil", label="Upload a garment")
         similarity_button = gr.Button("Find similar items")
-        similarity_output = gr.Gallery(label="Top matches", columns=TOP_K, object_fit="contain")
+        similarity_output = gr.Gallery(label="Top matches", columns=TOP_K, object_fit="contain", allow_preview=False)
         similarity_button.click(fn=find_similar, inputs=[similarity_input], outputs=similarity_output)
 
     with gr.Tab("Compatibility (naive)"):
@@ -127,10 +127,10 @@ with gr.Blocks(title="StyleMatch") as demo:
             f"top-{TOP_K} items to add. No category filtering."
         )
         compat_naive_input = gr.Gallery(
-            label="Upload your garment(s)", interactive=True, type="pil", sources=["upload"], object_fit="contain"
+            label="Upload your garment(s)", interactive=True, type="pil", sources=["upload"], object_fit="contain", allow_preview=False
         )
         compat_naive_button = gr.Button("Find compatible items")
-        compat_naive_output = gr.Gallery(label="Top matches", columns=TOP_K, object_fit="contain")
+        compat_naive_output = gr.Gallery(label="Top matches", columns=TOP_K, object_fit="contain", allow_preview=False)
         compat_naive_button.click(
             fn=find_compatible_naive, inputs=[compat_naive_input], outputs=compat_naive_output
         )
@@ -141,11 +141,11 @@ with gr.Blocks(title="StyleMatch") as demo:
             "items to add, excluding items from that same category."
         )
         compat_labeled_input = gr.Gallery(
-            label="Upload your garment(s)", interactive=True, type="pil", sources=["upload"], object_fit="contain"
+            label="Upload your garment(s)", interactive=True, type="pil", sources=["upload"], object_fit="contain", allow_preview=False
         )
         compat_labeled_category = gr.Dropdown(choices=SEMANTIC_CATEGORIES, label="New item's category")
         compat_labeled_button = gr.Button("Find compatible items")
-        compat_labeled_output = gr.Gallery(label="Top matches", columns=TOP_K, object_fit="contain")
+        compat_labeled_output = gr.Gallery(label="Top matches", columns=TOP_K, object_fit="contain", allow_preview=False)
         compat_labeled_button.click(
             fn=find_compatible_labeled,
             inputs=[compat_labeled_input, compat_labeled_category],
@@ -159,11 +159,11 @@ with gr.Blocks(title="StyleMatch") as demo:
             "category inference isn't separately validated."
         )
         compat_infer_input = gr.Gallery(
-            label="Upload your garment(s)", interactive=True, type="pil", sources=["upload"], object_fit="contain"
+            label="Upload your garment(s)", interactive=True, type="pil", sources=["upload"], object_fit="contain", allow_preview=False
         )
         compat_infer_button = gr.Button("Find compatible items")
         compat_infer_category = gr.Textbox(label="Inferred category", interactive=False)
-        compat_infer_output = gr.Gallery(label="Top matches", columns=TOP_K, object_fit="contain")
+        compat_infer_output = gr.Gallery(label="Top matches", columns=TOP_K, object_fit="contain", allow_preview=False)
         compat_infer_button.click(
             fn=_placeholder_results, inputs=[compat_infer_input], outputs=compat_infer_output
         )
@@ -175,8 +175,8 @@ with gr.Blocks(title="StyleMatch") as demo:
         )
         stretch_input = gr.Image(type="pil", label="Upload a garment")
         stretch_button = gr.Button("Find similar & compatible items")
-        stretch_similar_output = gr.Gallery(label="Similar items", columns=TOP_K, object_fit="contain")
-        stretch_compat_output = gr.Gallery(label="Compatible items", columns=TOP_K, object_fit="contain")
+        stretch_similar_output = gr.Gallery(label="Similar items", columns=TOP_K, object_fit="contain", allow_preview=False)
+        stretch_compat_output = gr.Gallery(label="Compatible items", columns=TOP_K, object_fit="contain", allow_preview=False)
         stretch_button.click(
             fn=_placeholder_results, inputs=[stretch_input], outputs=stretch_similar_output
         )
