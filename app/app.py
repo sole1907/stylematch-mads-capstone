@@ -53,23 +53,17 @@ compatibility_model.load_state_dict(
 compatibility_catalog = load_catalog(MODELS_DIR / "compatibility_catalog.pt")
 
 
-def _unwrap_gallery(images) -> list[Image.Image]:
-    """Normalizes a gr.Image value (single image or None) or a
-    gr.Gallery value (list of images, or list of (image, caption)
-    tuples) into a plain list of PIL images."""
-    if images is None:
-        return []
-    if not isinstance(images, list):
-        images = [images]
-    return [img[0] if isinstance(img, tuple) else img for img in images]
+def _filter_none(*images) -> list[Image.Image]:
+    """Drops any unfilled optional upload box (None) from a fixed set
+    of gr.Image inputs."""
+    return [img for img in images if img is not None]
 
 
 @torch.no_grad()
 def find_similar(uploaded_image) -> list:
-    images = _unwrap_gallery(uploaded_image)
-    if not images:
+    if uploaded_image is None:
         return []
-    tensor = similarity_model.preprocess_val(images[0]).unsqueeze(0)
+    tensor = similarity_model.preprocess_val(uploaded_image).unsqueeze(0)
     query_embedding = similarity_model(tensor)[0].cpu()
 
     results = search_by_similarity(query_embedding, similarity_catalog, top_k=TOP_K)
@@ -80,8 +74,7 @@ def find_similar(uploaded_image) -> list:
 
 
 @torch.no_grad()
-def _find_compatible(uploaded_images, exclude_category_labels=None) -> list:
-    images = _unwrap_gallery(uploaded_images)
+def _find_compatible(images: list[Image.Image], exclude_category_labels=None) -> list:
     if not images:
         return []
     tensors = torch.stack([compatibility_model.preprocess_val(img) for img in images])
@@ -96,19 +89,23 @@ def _find_compatible(uploaded_images, exclude_category_labels=None) -> list:
     ]
 
 
-def find_compatible_naive(uploaded_images) -> list:
-    return _find_compatible(uploaded_images)
+def find_compatible_naive(image1, image2, image3) -> list:
+    return _find_compatible(_filter_none(image1, image2, image3))
 
 
-def find_compatible_labeled(uploaded_images, category_name: str) -> list:
+def find_compatible_labeled(image1, image2, image3, category_name: str) -> list:
     exclude = {CATEGORY_TO_LABEL[category_name]} if category_name else None
-    return _find_compatible(uploaded_images, exclude_category_labels=exclude)
+    return _find_compatible(_filter_none(image1, image2, image3), exclude_category_labels=exclude)
 
 
-def _placeholder_results(images) -> list:
+def _placeholder_results(image1, image2, image3) -> list:
     """Not wired to a model yet -- just echoes the upload(s) back so
     the gallery/layout can be checked end-to-end."""
-    return _unwrap_gallery(images)
+    return _filter_none(image1, image2, image3)
+
+
+def _placeholder_result_single(image) -> list:
+    return _filter_none(image)
 
 
 with gr.Blocks(title="StyleMatch") as demo:
@@ -123,49 +120,56 @@ with gr.Blocks(title="StyleMatch") as demo:
 
     with gr.Tab("Compatibility (naive)"):
         gr.Markdown(
-            f"Upload one or more garments you already have (e.g. a shirt and pants), see the "
-            f"top-{TOP_K} items to add. No category filtering."
+            f"Upload one, two, or three garments you already have (e.g. a shirt and pants), see "
+            f"the top-{TOP_K} items to add. No category filtering."
         )
-        compat_naive_input = gr.Gallery(
-            label="Upload your garment(s)", interactive=True, type="pil", sources=["upload"], object_fit="contain", allow_preview=False
-        )
+        with gr.Row():
+            compat_naive_input1 = gr.Image(type="pil", label="Garment 1")
+            compat_naive_input2 = gr.Image(type="pil", label="Garment 2 (optional)")
+            compat_naive_input3 = gr.Image(type="pil", label="Garment 3 (optional)")
         compat_naive_button = gr.Button("Find compatible items")
         compat_naive_output = gr.Gallery(label="Top matches", columns=TOP_K, object_fit="contain", allow_preview=False)
         compat_naive_button.click(
-            fn=find_compatible_naive, inputs=[compat_naive_input], outputs=compat_naive_output
+            fn=find_compatible_naive,
+            inputs=[compat_naive_input1, compat_naive_input2, compat_naive_input3],
+            outputs=compat_naive_output,
         )
 
     with gr.Tab("Compatibility (labeled)"):
         gr.Markdown(
-            f"Upload one or more garments and tell us the NEW item's category, see the top-{TOP_K} "
-            "items to add, excluding items from that same category."
+            f"Upload one, two, or three garments and tell us the NEW item's category, see the "
+            f"top-{TOP_K} items to add, excluding items from that same category."
         )
-        compat_labeled_input = gr.Gallery(
-            label="Upload your garment(s)", interactive=True, type="pil", sources=["upload"], object_fit="contain", allow_preview=False
-        )
+        with gr.Row():
+            compat_labeled_input1 = gr.Image(type="pil", label="Garment 1")
+            compat_labeled_input2 = gr.Image(type="pil", label="Garment 2 (optional)")
+            compat_labeled_input3 = gr.Image(type="pil", label="Garment 3 (optional)")
         compat_labeled_category = gr.Dropdown(choices=SEMANTIC_CATEGORIES, label="New item's category")
         compat_labeled_button = gr.Button("Find compatible items")
         compat_labeled_output = gr.Gallery(label="Top matches", columns=TOP_K, object_fit="contain", allow_preview=False)
         compat_labeled_button.click(
             fn=find_compatible_labeled,
-            inputs=[compat_labeled_input, compat_labeled_category],
+            inputs=[compat_labeled_input1, compat_labeled_input2, compat_labeled_input3, compat_labeled_category],
             outputs=compat_labeled_output,
         )
 
     with gr.Tab("Compatibility (infer)"):
         gr.Markdown(
-            f"Upload one or more garments, category inferred automatically (via the similarity "
-            f"engine's nearest neighbors), see the top-{TOP_K} items to add. Exploratory -- "
-            "category inference isn't separately validated."
+            f"Upload one, two, or three garments, category inferred automatically (via the "
+            f"similarity engine's nearest neighbors), see the top-{TOP_K} items to add. "
+            "Exploratory -- category inference isn't separately validated."
         )
-        compat_infer_input = gr.Gallery(
-            label="Upload your garment(s)", interactive=True, type="pil", sources=["upload"], object_fit="contain", allow_preview=False
-        )
+        with gr.Row():
+            compat_infer_input1 = gr.Image(type="pil", label="Garment 1")
+            compat_infer_input2 = gr.Image(type="pil", label="Garment 2 (optional)")
+            compat_infer_input3 = gr.Image(type="pil", label="Garment 3 (optional)")
         compat_infer_button = gr.Button("Find compatible items")
         compat_infer_category = gr.Textbox(label="Inferred category", interactive=False)
         compat_infer_output = gr.Gallery(label="Top matches", columns=TOP_K, object_fit="contain", allow_preview=False)
         compat_infer_button.click(
-            fn=_placeholder_results, inputs=[compat_infer_input], outputs=compat_infer_output
+            fn=_placeholder_results,
+            inputs=[compat_infer_input1, compat_infer_input2, compat_infer_input3],
+            outputs=compat_infer_output,
         )
 
     with gr.Tab("Stretch: African garments"):
@@ -178,10 +182,10 @@ with gr.Blocks(title="StyleMatch") as demo:
         stretch_similar_output = gr.Gallery(label="Similar items", columns=TOP_K, object_fit="contain", allow_preview=False)
         stretch_compat_output = gr.Gallery(label="Compatible items", columns=TOP_K, object_fit="contain", allow_preview=False)
         stretch_button.click(
-            fn=_placeholder_results, inputs=[stretch_input], outputs=stretch_similar_output
+            fn=_placeholder_result_single, inputs=[stretch_input], outputs=stretch_similar_output
         )
         stretch_button.click(
-            fn=_placeholder_results, inputs=[stretch_input], outputs=stretch_compat_output
+            fn=_placeholder_result_single, inputs=[stretch_input], outputs=stretch_compat_output
         )
 
 
