@@ -1,0 +1,4 @@
+GPU OK: NVIDIA A40
+Similarity zero-shot baseline evaluation starting: Sat Nov 28 12:29:19 EST 2026
+[32m2026-11-28 12:32:15.357 -05:00[0m | [32m[1mSUCCESS [0m | [36m__main__[0m:[36mmain[0m:[36m30[0m - [32m[1mZero-shot baseline (raw backbone, no fine-tuning) test-set evaluation: {'accuracy': 0.6454524397850037, 'attribute_aware_accuracy': 0.38285890221595764, 'random_baseline': 0.11178822778818275, 'num_images': 38889, 'num_categories': 21}[0m
+Similarity zero-shot baseline evaluation finished: Sat Nov 28 12:32:16 EST 2026
