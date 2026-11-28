@@ -3,9 +3,6 @@ checkpoint. Stretch goal: lets the demo search African garments
 against OTHER African garments (not the DeepFashion catalog -- that's
 a different, bias-generalization question, not this one).
 
-Only 1,600 images -- small enough to run locally (~8 min at the
-measured local CPU rate), no Great Lakes job needed.
-
 Note: category_labels here are AFRIFASHION_CLASSES indices (8
 classes), a different label space from the DeepFashion catalog's 21
 categories -- never mix the two.

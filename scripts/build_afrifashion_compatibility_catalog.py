@@ -2,9 +2,6 @@
 engine's checkpoint. Stretch goal: lets the demo search African
 garments against OTHER African garments for compatible suggestions.
 
-Only 1,600 images -- small enough to run locally (~8 min at the
-measured local CPU rate), no Great Lakes job needed.
-
 Note: category_labels here are AFRIFASHION_CLASSES indices (8
 classes), a different label space from the Polyvore catalog's 11
 semantic categories -- never mix the two.
