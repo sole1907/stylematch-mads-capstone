@@ -1,4 +1,5 @@
 gdown
+gradio
 huggingface_hub
 ipython
 jupyterlab
