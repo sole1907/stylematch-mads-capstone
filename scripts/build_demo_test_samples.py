@@ -1,9 +1,10 @@
-"""One-off convenience script: copies a small per-category sample of
-each dataset's real held-out images (DeepFashion/Polyvore test split,
-AFRIFASHION1600 holdout) into data/raw/demo_test_data/<dataset>/<category>/,
-for manually picking an upload image when testing the demo app. Not
-used by any pipeline/training code -- a copy, not a move, safe to
-re-run anytime.
+"""One-off convenience script: copies every real held-out image
+(DeepFashion/Polyvore test split, AFRIFASHION1600 holdout), organized
+by category, into data/raw/demo_test_data/<dataset>/<category>/, for
+manually picking an upload image when testing the demo app. Not used
+by any pipeline/training code -- a copy, not a move, safe to re-run
+anytime. ~1GB total (DeepFashion ~436MB, Polyvore ~546MB, AFRIFASHION
+negligible), real sizes checked before deciding to copy everything.
 
 Similarity (DeepFashion) only includes the 21 categories the model
 was actually trained/evaluated on, not all 46 real categories.
@@ -23,7 +24,6 @@ from stylematch.config import AFRIFASHION_DIR, DEEPFASHION_DIR, POLYVORE_DIR, RA
 from stylematch.similarity.dataset import _iter_annotation_rows, get_qualifying_categories
 
 OUTPUT_DIR = RAW_DATA_DIR / "demo_test_data"
-SAMPLES_PER_CATEGORY = 5
 CATEGORY_INCLUSION_THRESHOLD = 1000
 _AFRIFASHION_FILENAME_RE = re.compile(r"^(.+)_\d+\.png$")
 
@@ -46,14 +46,15 @@ def build_deepfashion_samples() -> None:
         if category_label not in allowed:
             continue
         counts[category_label] = counts.get(category_label, 0) + 1
-        if counts[category_label] > SAMPLES_PER_CATEGORY:
-            continue
 
         category_dir = OUTPUT_DIR / "deepfashion" / category_names[category_label]
         category_dir.mkdir(parents=True, exist_ok=True)
         shutil.copy(DEEPFASHION_DIR / image_name, category_dir / Path(image_name).name)
 
-    logger.success(f"DeepFashion: sampled {len(allowed)} categories into {OUTPUT_DIR / 'deepfashion'}")
+    logger.success(
+        f"DeepFashion: copied {sum(counts.values())} images across {len(allowed)} categories "
+        f"into {OUTPUT_DIR / 'deepfashion'}"
+    )
 
 
 def build_polyvore_samples() -> None:
@@ -67,14 +68,15 @@ def build_polyvore_samples() -> None:
         # indexing needed.
         category_name = dataset.metadata[item_id]["semantic_category"]
         counts[category_name] = counts.get(category_name, 0) + 1
-        if counts[category_name] > SAMPLES_PER_CATEGORY:
-            continue
 
         category_dir = OUTPUT_DIR / "polyvore" / category_name
         category_dir.mkdir(parents=True, exist_ok=True)
         shutil.copy(POLYVORE_DIR / "images" / f"{item_id}.jpg", category_dir / f"{item_id}.jpg")
 
-    logger.success(f"Polyvore: sampled {len(counts)} categories into {OUTPUT_DIR / 'polyvore'}")
+    logger.success(
+        f"Polyvore: copied {sum(counts.values())} images across {len(counts)} categories "
+        f"into {OUTPUT_DIR / 'polyvore'}"
+    )
 
 
 def build_afrifashion_samples() -> None:
@@ -85,14 +87,15 @@ def build_afrifashion_samples() -> None:
         match = _AFRIFASHION_FILENAME_RE.match(path.name)
         class_name = match.group(1)
         counts[class_name] = counts.get(class_name, 0) + 1
-        if counts[class_name] > SAMPLES_PER_CATEGORY:
-            continue
 
         category_dir = OUTPUT_DIR / "afrifashion" / class_name
         category_dir.mkdir(parents=True, exist_ok=True)
         shutil.copy(path, category_dir / path.name)
 
-    logger.success(f"AFRIFASHION1600: sampled {len(counts)} classes into {OUTPUT_DIR / 'afrifashion'}")
+    logger.success(
+        f"AFRIFASHION1600: copied {sum(counts.values())} images across {len(counts)} classes "
+        f"into {OUTPUT_DIR / 'afrifashion'}"
+    )
 
 
 def main() -> None:
