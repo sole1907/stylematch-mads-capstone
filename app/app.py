@@ -1,7 +1,4 @@
-"""StyleMatch demo app, UI skeleton only -- no model inference wired
-yet (that's the next pass). Each tab's button currently just echoes
-the upload(s) back into the results gallery, to confirm the layout
-and data flow work before any real model call exists.
+"""StyleMatch demo app.
 
 5 tabs, matching the planned build order:
 1. Similarity: upload 1 image -> top-7 similar items.
