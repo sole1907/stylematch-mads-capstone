@@ -25,6 +25,13 @@ DEEPFASHION_DIR = Path(os.environ.get("DEEPFASHION_DIR", RAW_DATA_DIR / "deepfas
 # references/polyvore_outfits_schema.md for what's inside.
 POLYVORE_DIR = Path(os.environ.get("POLYVORE_DIR", RAW_DATA_DIR / "polyvore_outfits"))
 
+# Same override pattern, for the stretch-goal African-fashion
+# generalization check. Points at the actual images folder, inside
+# the zip's own nested folder.
+AFRIFASHION_DIR = Path(
+    os.environ.get("AFRIFASHION_DIR", RAW_DATA_DIR / "afrifashion1600" / "AFRIFASHION1600")
+)
+
 # Same override pattern, in case checkpoints need to move off a
 # smaller quota (e.g. Great Lakes' /home) without touching code.
 MODELS_DIR = Path(os.environ.get("MODELS_DIR", PROJ_ROOT / "models"))

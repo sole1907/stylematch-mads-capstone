@@ -7,10 +7,70 @@ model/dataset/identifiers get passed in.
 """
 
 from pathlib import Path
+import re
 
 from loguru import logger
+import numpy as np
+from PIL import Image
 import torch
-from torch.utils.data import DataLoader
+from torch import Tensor
+from torch.utils.data import DataLoader, Dataset
+
+from stylematch.config import AFRIFASHION_DIR
+
+# The real class names, confirmed from the actual filenames (e.g.
+# "Gown_166.png", "African_Blouse_123.png" -- some class names
+# contain underscores themselves, so parsing strips a trailing
+# "_<number>.png", not a first-underscore split).
+AFRIFASHION_CLASSES = sorted(
+    [
+        "African_Blouse",
+        "African_Shirts",
+        "Agbada",
+        "Buba and Trouser",
+        "Gele",
+        "Gown",
+        "Skirt and Blouse",
+        "Wrapper and Blouse",
+    ]
+)
+AFRIFASHION_CATEGORY_TO_LABEL = {name: i for i, name in enumerate(AFRIFASHION_CLASSES)}
+_AFRIFASHION_FILENAME_RE = re.compile(r"^(.+)_\d+\.png$")
+
+
+class AfrifashionDataset(Dataset):
+    """Flat dataset over the AFRIFASHION1600 images. No subfolders or
+    annotation file -- class name is encoded in the filename itself
+    (e.g. "Gown_166.png"), confirmed against the real downloaded files."""
+
+    def __init__(self, root: Path = AFRIFASHION_DIR, transform=None) -> None:
+        self.root = Path(root)
+        self.transform = transform
+        self.image_names = sorted(p.name for p in self.root.glob("*.png"))
+
+    def __len__(self) -> int:
+        return len(self.image_names)
+
+    def __getitem__(self, idx: int) -> tuple[Tensor, int, str]:
+        """
+        Returns:
+            image: preprocessed item image, shape (3, H, W).
+            category_label: parsed from the filename.
+            image_name: the real filename, e.g. "Gown_166.png".
+        """
+        image_name = self.image_names[idx]
+        match = _AFRIFASHION_FILENAME_RE.match(image_name)
+        if match is None:
+            raise ValueError(f"filename {image_name!r} doesn't match the expected '<class>_<n>.png' pattern")
+        category_label = AFRIFASHION_CATEGORY_TO_LABEL[match.group(1)]
+
+        image = Image.open(self.root / image_name).convert("RGB")
+        if self.transform is not None:
+            image = self.transform(image)
+        else:
+            image = image.resize((224, 224))
+            image = torch.from_numpy(np.array(image)).permute(2, 0, 1).float() / 255.0
+        return image, category_label, image_name
 
 
 @torch.no_grad()
